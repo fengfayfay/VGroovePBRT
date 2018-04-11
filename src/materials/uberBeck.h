@@ -35,8 +35,8 @@
 #pragma once
 #endif
 
-#ifndef PBRT_MATERIALS_UBER_H
-#define PBRT_MATERIALS_UBER_H
+#ifndef PBRT_MATERIALS_UBER_BECK_H
+#define PBRT_MATERIALS_UBER_BECK_H
 
 // materials/uber.h*
 #include "pbrt.h"
@@ -44,10 +44,10 @@
 
 namespace pbrt {
 
-// UberMaterial Declarations
-class UberMaterial : public Material {
+// UberBeckMaterial Declarations
+class UberBeckMaterial : public Material {
   public:
-    UberMaterial(const std::shared_ptr<Texture<Spectrum>> &Kd,
+    UberBeckMaterial(const std::shared_ptr<Texture<Spectrum>> &Kd,
                  const std::shared_ptr<Texture<Spectrum>> &Ks,
                  const std::shared_ptr<Texture<Spectrum>> &Kr,
                  const std::shared_ptr<Texture<Spectrum>> &Kt,
@@ -58,7 +58,7 @@ class UberMaterial : public Material {
                  const std::shared_ptr<Texture<Float>> &eta,
                  const std::shared_ptr<Texture<Float>> &bumpMap,
                  bool remapRoughness,
-                 bool vcavity = false)
+                 bool isVCavity)
         : Kd(Kd),
           Ks(Ks),
           Kr(Kr),
@@ -70,22 +70,22 @@ class UberMaterial : public Material {
           eta(eta),
           bumpMap(bumpMap),
           remapRoughness(remapRoughness),
-          vcavity(vcavity) {}
+          isVCavity(isVCavity) {}
 
     void ComputeScatteringFunctions(SurfaceInteraction *si, MemoryArena &arena,
                                     TransportMode mode,
                                     bool allowMultipleLobes) const;
 
   private:
-    // UberMaterial Private Data
+    // UberBeckMaterial Private Data
     std::shared_ptr<Texture<Spectrum>> Kd, Ks, Kr, Kt, opacity;
     std::shared_ptr<Texture<Float>> roughness, roughnessu, roughnessv, eta,
         bumpMap;
     bool remapRoughness;
-    bool vcavity;
+    bool isVCavity;
 };
 
-UberMaterial *CreateUberMaterial(const TextureParams &mp);
+UberBeckMaterial *CreateUberBeckMaterial(const TextureParams &mp);
 
 }  // namespace pbrt
 

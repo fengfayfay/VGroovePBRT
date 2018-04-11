@@ -81,6 +81,7 @@
 #include "materials/subsurface.h"
 #include "materials/translucent.h"
 #include "materials/uber.h"
+#include "materials/uberBeck.h"
 #include "samplers/halton.h"
 #include "samplers/maxmin.h"
 #include "samplers/random.h"
@@ -584,6 +585,8 @@ std::shared_ptr<Material> MakeMaterial(const std::string &name,
         material = CreateSubstrateMaterial(mp);
     else if (name == "uber")
         material = CreateUberMaterial(mp);
+    else if (name == "uberBeck")
+        material = CreateUberBeckMaterial(mp);
     else if (name == "subsurface")
         material = CreateSubsurfaceMaterial(mp);
     else if (name == "kdsubsurface")
