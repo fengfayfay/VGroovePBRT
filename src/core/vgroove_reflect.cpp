@@ -1,3 +1,4 @@
+#include <sampling.h>
 #include "vgroove_reflect.h"
 
 namespace pbrt {
@@ -12,9 +13,26 @@ float computeThetaForPhi0(const Vector3f& w) {
     float cosPhi = 1;
     float sinPhi = 0; 
     float sinTheta = w.x/cosPhi;
-    float theta = math.atan2(sinTheta, cosTheta);
+    float theta = atan2(sinTheta, cosTheta);
     return theta;
 }
+/*
+class Frame:
+    def __init__(self, X, Z):
+        self.Z = Z
+        self.Y = self.Z.cross(X).norm()
+        self.X = self.Y.cross(self.Z).norm()
+
+    def globalToLocal(self,w):
+        x = w.dot(self.X)
+        y = w.dot(self.Y)
+        z = w.dot(self.Z)
+        return vec3.Vec3(x, y, z)
+
+    def localToGlobal(self, w):
+        g = self.X * w.x + self.Y * w.y + self.Z * w.z
+        return g
+*/
 
 struct Frame {
 
@@ -23,7 +41,7 @@ struct Frame {
         createRotationZ(wh);
     }
     void createRotationZ(const Vector3f& wh) {
-        float t = math.atan2(wh.y, wh.x);
+        float t = atan2(wh.y, wh.x);
         /*
         if (t < 0) {
             t += Pi * 2.0;
@@ -33,8 +51,8 @@ struct Frame {
         w2l = RotateZ(theta * 180.0/Pi);
     }
 
-    void createRotationY(const Vector& wh) {
-        float t = math.atan2(wh.x, wh.z);
+    void createRotationY(const Vector3f& wh) {
+        float t = atan2(wh.x, wh.z);
         /*
         if (t < 0) {
             t += Pi * 2.0;
@@ -50,17 +68,17 @@ struct Frame {
     Vector3f localToWorld(const Vector3f& wl) {
         //this is a bit of hack to take advantage of rotation being symmetric
         Normal3f N(wl.x, wl.y, wl.z);
-        return l2w(N);
+        return Vector3f(w2l(N));
     }
     Transform w2l;
 };
     
 struct EvalFrame : public Frame {
     EvalFrame(const Vector3f& owo, const Vector3f& owi, bool autoFlip = true) {
-        wo = owo.norm()
-        wi = owi.norm()
+        wo = Normalize(owo);
+        wi = Normalize(owi);
         
-        w2l = createRotationZ(wo, wi);
+        createRotationZ(wo, wi);
         wo = worldToLocal(wo);
         wi = worldToLocal(wi);
 
@@ -70,7 +88,7 @@ struct EvalFrame : public Frame {
         wip = Normalize(wip);
         theta_o = computeThetaForPhi0(wop);
         theta_i = computeThetaForPhi0(wip);
-        flipped = False
+        flipped = false;
 
         /*
         phi_o = atan2(wo.y, wo.x);
@@ -100,20 +118,20 @@ struct EvalFrame : public Frame {
 
 };
 ///////////////////////////////////SampleFrame//////////////////////////
-struct SampleFrame::public Frame {
+struct SampleFrame:public Frame {
 
     SampleFrame(const Vector3f&  owo, const Vector3f& owh, bool autoFlip = true) {
         wo = Normalize(owo);
-        w2l = createRotationZ(owh);
+        createRotationZ(owh);
 
         wo = worldToLocal(wo);
-        wh = worldToLoal(wh);
+        wh = worldToLocal(wh);
         assert(math.fabs(wh.y) < .000001);
 
-        wop = Normalize(Vector3f(wo.x, 0, wo.z);
-        theta_o = computeThetaForPhi0(self.wop, 0);
+        wop = Normalize(Vector3f(wo.x, 0, wo.z));
+        theta_o = computeThetaForPhi0(wop);
 
-        //phi_o = atan2(self.wo.y, self.wo.x)
+        //phi_o = atan2(wo.y, wo.x)
         //theta_or = computeTheta(self.wo, self.phi_o)
         flipped = false;
 
@@ -129,11 +147,11 @@ struct SampleFrame::public Frame {
         }
     }
 
-    Vector3f constructWi(theta_i) {
+    Vector3f constructWi(float theta_i) {
         Vector3f wip = Vector3f(sin(theta_i), 0, cos(theta_i)); 
         Vector3f wi(0, 0, 0);
         wi.y = -wo.y;
-        float scale = sqrt(1.0 - wi.y * wi.y)
+        float scale = sqrt(1.0 - wi.y * wi.y);
 
         wi.x = wip.x * scale;
         wi.z = wip.z * scale;
@@ -152,27 +170,28 @@ struct SampleFrame::public Frame {
 };
 
 struct Jacobian: public Frame{
-    Jacobian(const Vector3f& wo, const Vector3f& wi, const Vector3f& wh): owo(wo), owi(wi), owh(wh) {
+    Jacobian(const Vector3f& owo, const Vector3f& owi, const Vector3f& owh): owo(owo), owi(owi), owh(owh) {
 
-        Vector3f owhp = Vector3f(-wh.x, 0, wh.z);
-        N = Vector3f(0, 0, 1);
+        //Vector3f owhp = Vector3f(-wh.x, 0, wh.z);
         //wih = vec3.dot(wi, wh)
 
-        w2l = createRotationY(wh);
-        Ng = worldToLocal(N);
-        H = worldToLocal(wh);
-        HP = Reflect(H, Ng)
+        createRotationY(owh);
 
-        //assert(vec3.Equal(self.H, vec3.Vec3(0, 0, 1)))
+        N = Vector3f(0, 0, 1);
+        Ng = worldToLocal(N);
+        H = worldToLocal(owh);
+        HP = Reflect(H, Ng);
+
+        //assert(vec3.Equal(H, vec3.Vec3(0, 0, 1)))
         //assert(vec3.Equal(self.HP, self.rotateH.rotate(vec3.Vec3(-wh.x, 0, wh.z))))
 
-        wo = worldToLocal(wo);
-        wi = worldToLocal(wi);
-        //assert(vec3.EqualValue(self.wi.z, self.wih))
+        wo = worldToLocal(owo);
+        wi = worldToLocal(owi);
+        //assert(vec3.EqualValue(wi.z, wih))
 
-        dxpdxa = - 1.0 + 2.0 * Ng.x * Ng.x
-        dypdya = - 1.0 + 2.0 * Ng.y * Ng.y
-        dzpdxa = 2.0 * Ng.x * Ng.z
+        dxpdxa = - 1.0 + 2.0 * Ng.x * Ng.x;
+        dypdya = - 1.0 + 2.0 * Ng.y * Ng.y;
+        dzpdxa = 2.0 * Ng.x * Ng.z;
     }
     
     const Vector3f& getH(int bounce) const {
@@ -185,7 +204,7 @@ struct Jacobian: public Frame{
             return Vector2f(0, 0);    
         } else {
             Vector3f wp;
-            pDxDy = computeDxaDya(bounce - 1, wp);
+            Vector2f pDxDy = computeDxaDya(bounce - 1, wp);
             float pDxdxa = pDxDy.x;
             float pDydya = pDxDy.y;
 
@@ -193,14 +212,14 @@ struct Jacobian: public Frame{
             float kp = Dot(wp, h);
             w = Reflect(-wp, h);
             float dxdxa = 0, dydya = 0;
-            if (bounce % 2 == 0 {
+            if (bounce % 2 == 0) {
                 float pDzdxa = -wp.x/wp.z * pDxdxa;
                 dxdxa = pDxdxa - 2.0 * kp * dxpdxa;
                 dxdxa -= 2.0 * HP.x * (pDxdxa * HP.x + wp.x * dxpdxa + pDzdxa * HP.z + wp.z * dzpdxa);
-                dydya = pDydya + 2.0 * kp
+                dydya = pDydya + 2.0 * kp;
             } else {
-                dxdxa = pDxdxa - 2.0 * kp
-                dydya = pDydya - 2.0 * kp
+                dxdxa = pDxdxa - 2.0 * kp;
+                dydya = pDydya - 2.0 * kp;
             }
             return Vector2f(dxdxa, dydya);
         }
@@ -208,9 +227,9 @@ struct Jacobian: public Frame{
 
     float computeJacobian(int bounce) {
         Vector3f wr;
-        Vec2f dxy = computeDxaDya(bounce, wr);
+        Vector2f dxy = computeDxaDya(bounce, wr);
 
-        //assert(vec3.Equal(wr, self.wi))
+        //assert(vec3.Equal(wr, wi))
         float denom = fabs(dxy.x * dxy.y);
         if (denom < 1e-6) return 0;
         float nom = fabs(wi.z);
@@ -218,13 +237,13 @@ struct Jacobian: public Frame{
         return jacobian;
     }
 
-    Vector3f N, Ng, H, HP, wo, wi;
+    Vector3f N, Ng, H, HP, wo, wi, owo, owi, owh;
     float dxpdxa, dypdya, dzpdxa;
 
 };
 
 Vector3f computeZipinNormal(float thetaM, char side, const Vector3f& wop) {
-    Vector3f n(math.cos(thetaM), 0, math.sin(thetaM));
+    Vector3f n(cos(thetaM), 0, sin(thetaM));
     n.x *= wop.x > 0 ? 1: -1;
     if (side == 'r' ){
         n.x *= -1;
@@ -232,12 +251,12 @@ Vector3f computeZipinNormal(float thetaM, char side, const Vector3f& wop) {
     return n;
 }
 
-float comuteGFactor(EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side, Vector3f& wm)
+float computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side, Vector3f& wm)
 {
     float G = 0, thetaM = 0;
     bool valid = vgroove.inverseEval(evalFrame.theta_o, evalFrame.theta_i, bounce, side, thetaM, G);    
     if (valid) {
-        wm = computZipinNormal(thetaM, side, evalFrame.wop);
+        wm = computeZipinNormal(thetaM, side, evalFrame.wop);
     }
     return G;
 }
@@ -250,9 +269,9 @@ VGrooveReflection::computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroov
     float G = computeGFactor(evalFrame, vgroove, bounce, side, wm);
     float brdf = 0;
     if (G > 0) {
-        float value = microfaceReflectionWithoutG(evalFrame.wo, evalFrame.wi, wm);
-        float mpdf = microfacetReflectionPdf(evalFrame.wo, wh);
-        Jacobian jacobian(evalFrame.wo, evalFrame.wi, wh);
+        float value = microfacetReflectionWithoutG(evalFrame.wo, evalFrame.wi, wm);
+        float mpdf = microfacetPdf(evalFrame.wo, wm);
+        Jacobian jacobian(evalFrame.wo, evalFrame.wi, wm);
         float J = jacobian.computeJacobian(bounce);
 
         //4 is due to the single bounce jacobian accountment in the microfacetReflection* functions
@@ -263,7 +282,7 @@ VGrooveReflection::computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroov
 }
 
 Spectrum 
-VGrooveReflection::Eval(const Vector3f &wo, const Vector3f &wi, int maxBounce, int minBounce, float& pdf) const {
+VGrooveReflection::eval(const Vector3f &wo, const Vector3f &wi, float& pdf, int maxBounce, int minBounce) const {
 
     VGroove vgroove;
     EvalFrame evalFrame(wo, wi);
@@ -292,15 +311,17 @@ int weightedRandomChoice(std::vector<Hit> hits, int maxBounce, int minBounce, fl
 }
 
 Spectrum 
-VGrooveReflection::Sample_f(const Vector3f &wo, Vector3f *wi, const Point2f &u,
+VGrooveReflection::Sample_f(const Vector3f &owo, Vector3f *wi, const Point2f &u,
                        Float *pdf, BxDFType *sampledType) const {
-    wo = wo.norm();
+    Vector3f wo = Normalize(wo); 
 
     if (wo.z <=  1e-6) {
         if (pdf) *pdf = 0;
         return Spectrum(0);
     }
-    Vector3f wh = distribtion->Sample_wh(wo, u);
+    
+    return UniSample_f(wo, wi, u, pdf, sampledType);
+    Vector3f wh = distribution->Sample_wh(wo, u);
     SampleFrame sampleFrame(wo, wh);
     float grooveTheta = asin(wh.z);
     VGroove vgroove;
@@ -313,11 +334,11 @@ VGrooveReflection::Sample_f(const Vector3f &wo, Vector3f *wi, const Point2f &u,
     int choice = weightedRandomChoice(vgroove.theHits, 3, 1, prob);
     if (choice >= 0) {
         Hit hit = vgroove.theHits[choice];
-        float brdf = microfacetValueWithoutG(wo, wh);
+        *wi = sampleFrame.constructWi(hit.thetaR); 
+        float brdf = microfacetReflectionWithoutG(wo, *wi, wh);
         float tpdf = microfacetPdf(wo, wh);
-        Vector3f wi = sampleFrame.constructWi(hit.thetaR); 
-        Jacobian jacobian(wo, wi, wh);
-        Float J = jacobian.computeJacobian(hit.n);
+        Jacobian jacobian(wo, *wi, wh);
+        Float J = jacobian.computeJacobian(hit.bounce);
         brdf *= hit.G * J * 4;
         tpdf *= prob * J * 4;
 
@@ -330,16 +351,31 @@ VGrooveReflection::Sample_f(const Vector3f &wo, Vector3f *wi, const Point2f &u,
 }
 
 Spectrum 
+VGrooveReflection::UniSample_f(const Vector3f &wo, Vector3f *wi, const Point2f &u,
+                       Float *pdf, BxDFType *sampledType) const {
+
+    if (pdf) *pdf = .5/Pi;
+    *wi = UniformSampleHemisphere(u);
+    float pdfstub;
+    return eval(wo, *wi, pdfstub, 3, 1); 
+}
+
+
+Spectrum 
 VGrooveReflection:: f(const Vector3f &wo, const Vector3f &wi) const {
     float pdf = 0;
-    return Eval(wo, wi, 3, 1, pdf);
+    return eval(wo, wi, pdf, 3, 1);
 }
 
 Float 
 VGrooveReflection::Pdf(const Vector3f &wo, const Vector3f &wi) const {
 
+    //TODO::uniform pdf for now    
+    return .5/Pi;
+
+    //real pdf computation
     float pdf = 0;
-    Spectrum brdf = eval(wo, wi, 3, 1, pdf);
+    Spectrum brdf = eval(wo, wi, pdf, 3, 1);
     return pdf;
 }
 
@@ -349,9 +385,8 @@ VGrooveReflection::microfacetReflectionWithoutG(const Vector3f& wo, const Vector
 
     Float cosThetaO = AbsCosTheta(wo), cosThetaI = AbsCosTheta(wi);
     // Handle degenerate cases for microfacet reflection
-    if (cosThetaI == 0 || cosThetaO == 0) return Spectrum(0.);
-    if (wh.x == 0 && wh.y == 0 && wh.z == 0) return Spectrum(0.);
-    wh = Normalize(wh);
+    if (cosThetaI == 0 || cosThetaO == 0) return 0;
+    if (wh.x == 0 && wh.y == 0 && wh.z == 0) return 0;
     //Spectrum F = fresnel->Evaluate(Dot(wi, wh));
     return distribution->D(wh) / (4 * cosThetaI * cosThetaO);
 }

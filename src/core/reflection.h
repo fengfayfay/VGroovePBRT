@@ -441,7 +441,7 @@ class MicrofacetReflection : public BxDF {
     Float Pdf(const Vector3f &wo, const Vector3f &wi) const;
     std::string ToString() const;
 
-  private:
+  protected:
     // MicrofacetReflection Private Data
     const Spectrum R;
     const MicrofacetDistribution *distribution;

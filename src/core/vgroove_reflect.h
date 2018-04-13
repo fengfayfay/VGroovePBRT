@@ -2,16 +2,21 @@
 
 namespace pbrt{
 
+
+//optimations:  sinTheta, cosTheta, tanPhi can all be available from wo and wh
+// sinTheta = wh.z, cosTheta = wh.x; tanPhi = wop.x/wop.z?
+//cosPhi = wop.z
+
 struct Hit {
-    Hit(Float thetaR, char bounce, char side, float G): 
+    Hit(Float thetaR, int bounce, char side, float G): 
         thetaR(thetaR), G(G), side(side), bounce(bounce) {};
 
     bool isHit(float thetaI, char bcount, char s) {
         return fabs(thetaR-thetaI) < 1e-4 && bounce == bcount && side == s;
     }
     
-    Float thetaR, G;
-    char bounce;
+    float thetaR, G;
+    int bounce;
     char side;
     //xmin, xmax, ratio are only used for debugging 
 };
@@ -29,12 +34,13 @@ class VGroove {
     inline void farEval(float theta, float phi, float maxX, bool hasNear, float hitrange);
     inline float nearEval(float theta, float phi, float hitrange);
     inline void addHit(float xi, int bcount, char side, float G);
-    inline bool inverseEval(float thetaO, float thetaI, char bounceCount, char side, float &thetaM, float& G);
+    inline bool inverseEval(float thetaO, float thetaI, int bounceCount, char side, float &thetaM, float& G);
+    std::vector<Hit> theHits;
+
   private:
     inline static bool computeThetaM(float thetaO, float thetaI, int bounceCount, char side, float &thetaM);
     inline static bool computeRightThetaM(float thetaO, float thetaI, int bounceCount, float& theta);
     inline static bool computeLeftThetaM(float thetaO, float thetaI, int bounceCount, float& theta);
-    std::vector<Hit> theHits;
 };
 
 bool 
@@ -65,7 +71,7 @@ VGroove::computeThetaM(float thetaO, float thetaI, int bounceCount, char side, f
 }
 
 bool
-VGroove::inverseEval(float thetaO, float thetaI, char bounceCount, char side, float &G, float &thetaM) {
+VGroove::inverseEval(float thetaO, float thetaI, int bounceCount, char side, float &G, float &thetaM) {
 
     G = 0;
     if (thetaO < 0) {
@@ -240,12 +246,17 @@ class VGrooveReflection : public MicrofacetReflection {
     //std::string ToString() const;
 
   private:
+
+    //uniform sampling for testing
+    Spectrum UniSample_f(const Vector3f &wo, Vector3f *wi, const Point2f &u,
+                      Float *pdf, BxDFType *sampledType) const;
+
     float microfacetReflectionWithoutG(const Vector3f& wo, const Vector3f& wi,
                    const Vector3f& wh) const;
     float microfacetPdf(const Vector3f& wo, const Vector3f& wh) const;
     float computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side,
                     float& pdf) const;
-    Spectrum eval(const Vector3f &wo, const Vector3f &wi, int maxBounce = 3, int minBounce = 1, float& pdf) const;
+    Spectrum eval(const Vector3f &wo, const Vector3f &wi, float &pdf, int maxBounce = 3, int minBounce = 1) const;
     //VGroove theGroove;
 };
 
