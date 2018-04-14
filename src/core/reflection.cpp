@@ -230,8 +230,9 @@ Spectrum MicrofacetReflection::f(const Vector3f &wo, const Vector3f &wi) const {
     if (cosThetaI == 0 || cosThetaO == 0) return Spectrum(0.);
     if (wh.x == 0 && wh.y == 0 && wh.z == 0) return Spectrum(0.);
     wh = Normalize(wh);
-    Spectrum F = fresnel->Evaluate(Dot(wi, wh));
-    return R * distribution->D(wh) * distribution->G(wo, wi) * F /
+    //Spectrum F = fresnel->Evaluate(Dot(wi, wh)) * R;
+    Spectrum F = 1;
+    return distribution->D(wh) * distribution->G(wo, wi) * F /
            (4 * cosThetaI * cosThetaO);
 }
 
@@ -722,7 +723,7 @@ Spectrum BSDF::Sample_f(const Vector3f &woWorld, Vector3f *wiWorld,
             bxdf = bxdfs[i];
             break;
         }
-    CHECK(bxdf != nullptr);
+    CHECK_NOTNULL(bxdf);
     VLOG(2) << "BSDF::Sample_f chose comp = " << comp << " / matching = " <<
         matchingComps << ", bxdf: " << bxdf->ToString();
 
@@ -753,7 +754,7 @@ Spectrum BSDF::Sample_f(const Vector3f &woWorld, Vector3f *wiWorld,
     if (matchingComps > 1) *pdf /= matchingComps;
 
     // Compute value of BSDF for sampled direction
-    if (!(bxdf->type & BSDF_SPECULAR)) {
+    if (!(bxdf->type & BSDF_SPECULAR) && matchingComps > 1) {
         bool reflect = Dot(*wiWorld, ng) * Dot(woWorld, ng) > 0;
         f = 0.;
         for (int i = 0; i < nBxDFs; ++i)
