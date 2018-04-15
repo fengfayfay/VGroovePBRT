@@ -37,6 +37,8 @@
 #include "reflection.h"
 #include "texture.h"
 #include "interaction.h"
+#include "vgroove_reflect.h"
+
 #include "paramset.h"
 
 namespace pbrt {
@@ -78,17 +80,21 @@ void UberMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
         else
             roughv = roughu;
         if (remapRoughness) {
-            roughu = TrowbridgeReitzDistribution::RoughnessToAlpha(roughu);
-            roughv = TrowbridgeReitzDistribution::RoughnessToAlpha(roughv);
+            roughu = BeckmannDistribution::RoughnessToAlpha(roughu);
+            roughv = BeckmannDistribution::RoughnessToAlpha(roughv);
         }
-        MicrofacetDistribution *distrib =
-            ARENA_ALLOC(arena, TrowbridgeReitzDistribution)(roughu, roughv, false, vcavity);
-            //ARENA_ALLOC(arena, BeckmannDistribution)(roughu, roughv, false);
-        BxDF *spec =
-            ARENA_ALLOC(arena, MicrofacetReflection)(ks, distrib, fresnel);
+        MicrofacetDistribution *distrib = ARENA_ALLOC(arena, BeckmannDistribution)(roughu, roughv, false, isVCavity);
+
+        BxDF *spec = NULL;
+        if (isVCavity) {
+            spec = ARENA_ALLOC(arena, MicrofacetReflection)(ks, distrib, fresnel);
+        } else {
+            spec = ARENA_ALLOC(arena, VGrooveReflection)(ks, distrib, fresnel, maxBounce, minBounce);
+        }
         si->bsdf->Add(spec);
     }
 
+    /*
     Spectrum kr = op * Kr->Evaluate(*si).Clamp();
     if (!kr.IsBlack()) {
         Fresnel *fresnel = ARENA_ALLOC(arena, FresnelDielectric)(1.f, e);
@@ -99,13 +105,14 @@ void UberMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
     if (!kt.IsBlack())
         si->bsdf->Add(
             ARENA_ALLOC(arena, SpecularTransmission)(kt, 1.f, e, mode));
+    */
 }
 
 UberMaterial *CreateUberMaterial(const TextureParams &mp) {
     std::shared_ptr<Texture<Spectrum>> Kd =
-        mp.GetSpectrumTexture("Kd", Spectrum(0.25f));
+        mp.GetSpectrumTexture("Kd", Spectrum(0));
     std::shared_ptr<Texture<Spectrum>> Ks =
-        mp.GetSpectrumTexture("Ks", Spectrum(0.25f));
+        mp.GetSpectrumTexture("Ks", Spectrum(1));
     std::shared_ptr<Texture<Spectrum>> Kr =
         mp.GetSpectrumTexture("Kr", Spectrum(0.f));
     std::shared_ptr<Texture<Spectrum>> Kt =
@@ -123,9 +130,13 @@ UberMaterial *CreateUberMaterial(const TextureParams &mp) {
     std::shared_ptr<Texture<Float>> bumpMap =
         mp.GetFloatTextureOrNull("bumpmap");
     bool remapRoughness = mp.FindBool("remaproughness", false);
-    bool vcavity = mp.FindBool("vcavity", true);
+    bool isVCavity = mp.FindBool("vcavity", false);
+    int maxBounce = mp.FindInt("maxBounce", 3);
+    int minBounce = mp.FindInt("minBounce", 1);
+    
+    
     return new UberMaterial(Kd, Ks, Kr, Kt, roughness, uroughness, vroughness,
-                            opacity, eta, bumpMap, remapRoughness, vcavity);
+                            opacity, eta, bumpMap, remapRoughness, isVCavity, maxBounce, minBounce);
 }
 
 }  // namespace pbrt

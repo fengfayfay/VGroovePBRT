@@ -37,6 +37,8 @@
 #include "reflection.h"
 #include "texture.h"
 #include "interaction.h"
+#include "vgroove_reflect.h"
+
 #include "paramset.h"
 
 namespace pbrt {
@@ -83,6 +85,7 @@ void UberBeckMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
         }
         MicrofacetDistribution *distrib = ARENA_ALLOC(arena, BeckmannDistribution)(roughu, roughv, false, isVCavity);
         BxDF *spec =
+            //ARENA_ALLOC(arena, VGrooveReflection)(ks, distrib, fresnel);
             ARENA_ALLOC(arena, MicrofacetReflection)(ks, distrib, fresnel);
         si->bsdf->Add(spec);
     }

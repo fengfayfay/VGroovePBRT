@@ -47,8 +47,8 @@ struct Frame {
             t += Pi * 2.0;
         }
         */
-        float theta = -t;
-        w2l = RotateZ(theta * 180.0/Pi);
+        frameTheta = -t;
+        w2l = RotateZ(frameTheta * 180.0/Pi);
     }
 
     void createRotationY(const Vector3f& wh) {
@@ -58,8 +58,8 @@ struct Frame {
             t += Pi * 2.0;
         }
         */
-        float theta = -t;
-        w2l = RotateY(theta * 180.0/Pi);
+        frameTheta = -t;
+        w2l = RotateY(frameTheta * 180.0/Pi);
     }
 
     Vector3f worldToLocal(const Vector3f& wW) {
@@ -71,6 +71,7 @@ struct Frame {
         return Vector3f(w2l(N));
     }
     Transform w2l;
+    float frameTheta;
 };
     
 struct EvalFrame : public Frame {
@@ -126,7 +127,7 @@ struct SampleFrame:public Frame {
 
         wo = worldToLocal(wo);
         wh = worldToLocal(wh);
-        assert(math.fabs(wh.y) < .000001);
+        assert(wh.y < 1e-5);
 
         wop = Normalize(Vector3f(wo.x, 0, wo.z));
         theta_o = computeThetaForPhi0(wop);
@@ -155,8 +156,8 @@ struct SampleFrame:public Frame {
 
         wi.x = wip.x * scale;
         wi.z = wip.z * scale;
-        //lenW = wi.dot(wi);
-        //assert(math.fabs(lenW - 1.0) < .0001)
+        float lenW = Dot(wi, wi);
+        assert(fabs(lenW - 1.0) < .0001);
 
         if (flipped) {
             wi.x *= -1;
@@ -253,12 +254,26 @@ Vector3f computeZipinNormal(float thetaM, char side, const Vector3f& wop) {
 
 float computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side, Vector3f& wm)
 {
-    float G = 0, thetaM = 0;
-    bool valid = vgroove.inverseEval(evalFrame.theta_o, evalFrame.theta_i, bounce, side, thetaM, G);    
+
+    //debug single bounce
+    
+   // wm = Normalize((evalFrame.wo + evalFrame.wi)*.5);
+   // return 1.0;
+    
+
+    float GFactor = 0, thetaM = 0;
+    bool valid = vgroove.inverseEval(evalFrame.theta_o, evalFrame.theta_i, bounce, side, thetaM, GFactor);    
     if (valid) {
         wm = computeZipinNormal(thetaM, side, evalFrame.wop);
+        if (bounce == 1) {
+            //no relation between frameTheta and thetaM (frameTheta is related to phi_h not theta_h
+            //assert((fabs(evalFrame.frameTheta) - fabs(thetaM)) < 1e-3);
+            Vector3f wh = Normalize((evalFrame.wo + evalFrame.wi)*.5);
+            float mh = Dot(wm, wh);
+            assert(fabs(mh - 1) < 1e-3);
+        }
     }
-    return G;
+    return GFactor;
 }
 
 
@@ -266,23 +281,26 @@ float
 VGrooveReflection::computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side, 
                     float& pdf) const {
     Vector3f wm;
-    float G = computeGFactor(evalFrame, vgroove, bounce, side, wm);
+    float GFactor = computeGFactor(evalFrame, vgroove, bounce, side, wm);
     float brdf = 0;
-    if (G > 0) {
+    if (GFactor > 0) {
         float value = microfacetReflectionWithoutG(evalFrame.wo, evalFrame.wi, wm);
         float mpdf = microfacetPdf(evalFrame.wo, wm);
         Jacobian jacobian(evalFrame.wo, evalFrame.wi, wm);
-        float J = jacobian.computeJacobian(bounce);
+        float J = jacobian.computeJacobian(bounce) * Dot(evalFrame.wo, wm) * 4;
+        if (bounce == 1) {
+            assert(fabs(J -1) < .001);
+        }
 
         //4 is due to the single bounce jacobian accountment in the microfacetReflection* functions
-        float brdf = value * J * G * 4;
-        pdf = mpdf * J * G * 4;     
+        brdf = value * J * GFactor;
+        pdf = mpdf * J * GFactor;     
     }
     return brdf;
 }
 
 Spectrum 
-VGrooveReflection::eval(const Vector3f &wo, const Vector3f &wi, float& pdf, int maxBounce, int minBounce) const {
+VGrooveReflection::eval(const Vector3f &wo, const Vector3f &wi, float& pdf) const {
 
     VGroove vgroove;
     EvalFrame evalFrame(wo, wi);
@@ -290,15 +308,16 @@ VGrooveReflection::eval(const Vector3f &wo, const Vector3f &wi, float& pdf, int 
     pdf = 0;
     for (int n = minBounce; n<=maxBounce; n++) {
         float tpdf; 
-        float tbrdf = computeBounceBrdf(evalFrame, vgroove, n, 'l', tpdf);
+        float tbrdf = computeBounceBrdf(evalFrame, vgroove, n, 'r', tpdf);
         brdf += tbrdf;
         pdf += tpdf;
         if (n == 1 && brdf > 0) continue;
-        tbrdf = computeBounceBrdf(evalFrame, vgroove, n, 'r', tpdf);
+        tbrdf = computeBounceBrdf(evalFrame, vgroove, n, 'l', tpdf);
         brdf += tbrdf;
         pdf += tpdf;
     }
-    return R*brdf;
+    return Spectrum(brdf);
+    //return R*brdf;
 }
 
 int weightedRandomChoice(std::vector<Hit> hits, int maxBounce, int minBounce, float& prob)
@@ -313,7 +332,7 @@ int weightedRandomChoice(std::vector<Hit> hits, int maxBounce, int minBounce, fl
 Spectrum 
 VGrooveReflection::Sample_f(const Vector3f &owo, Vector3f *wi, const Point2f &u,
                        Float *pdf, BxDFType *sampledType) const {
-    Vector3f wo = Normalize(wo); 
+    Vector3f wo = Normalize(owo); 
 
     if (wo.z <=  1e-6) {
         if (pdf) *pdf = 0;
@@ -321,7 +340,13 @@ VGrooveReflection::Sample_f(const Vector3f &owo, Vector3f *wi, const Point2f &u,
     }
     
     return UniSample_f(wo, wi, u, pdf, sampledType);
+
     Vector3f wh = distribution->Sample_wh(wo, u);
+    *wi = Reflect(wo, wh);
+    return eval(wo, *wi, *pdf);
+
+
+    /*
     SampleFrame sampleFrame(wo, wh);
     float grooveTheta = asin(wh.z);
     VGroove vgroove;
@@ -348,6 +373,7 @@ VGrooveReflection::Sample_f(const Vector3f &owo, Vector3f *wi, const Point2f &u,
         if (pdf) *pdf = 0;
         return Spectrum(0);
     }
+    */
 }
 
 Spectrum 
@@ -357,14 +383,14 @@ VGrooveReflection::UniSample_f(const Vector3f &wo, Vector3f *wi, const Point2f &
     if (pdf) *pdf = .5/Pi;
     *wi = UniformSampleHemisphere(u);
     float pdfstub;
-    return eval(wo, *wi, pdfstub, 3, 1); 
+    return eval(wo, *wi, pdfstub); 
 }
 
 
 Spectrum 
 VGrooveReflection:: f(const Vector3f &wo, const Vector3f &wi) const {
     float pdf = 0;
-    return eval(wo, wi, pdf, 3, 1);
+    return eval(wo, wi, pdf);
 }
 
 Float 
@@ -375,7 +401,7 @@ VGrooveReflection::Pdf(const Vector3f &wo, const Vector3f &wi) const {
 
     //real pdf computation
     float pdf = 0;
-    Spectrum brdf = eval(wo, wi, pdf, 3, 1);
+    Spectrum brdf = eval(wo, wi, pdf);
     return pdf;
 }
 

@@ -8,14 +8,14 @@ namespace pbrt{
 //cosPhi = wop.z
 
 struct Hit {
-    Hit(Float thetaR, int bounce, char side, float G): 
-        thetaR(thetaR), G(G), side(side), bounce(bounce) {};
+    Hit(Float thetaR, int bounce, char side, float GFactor): 
+        thetaR(thetaR), GFactor(GFactor), side(side), bounce(bounce) {};
 
-    bool isHit(float thetaI, char bcount, char s) {
+    bool isHit(float thetaI, int bcount, char s) {
         return fabs(thetaR-thetaI) < 1e-4 && bounce == bcount && side == s;
     }
     
-    float thetaR, G;
+    float thetaR, GFactor;
     int bounce;
     char side;
     //xmin, xmax, ratio are only used for debugging 
@@ -31,10 +31,13 @@ inline Float stableCeiling(Float psi, Float gAngle) {
 class VGroove {
   public:
     inline std::vector<Hit>& eval(float thetaG, float thetaO); 
-    inline void farEval(float theta, float phi, float maxX, bool hasNear, float hitrange);
-    inline float nearEval(float theta, float phi, float hitrange);
-    inline void addHit(float xi, int bcount, char side, float G);
-    inline bool inverseEval(float thetaO, float thetaI, int bounceCount, char side, float &thetaM, float& G);
+    inline std::vector<Hit>& leftEvalOnly(float thetaG, float thetaO); 
+    inline std::vector<Hit>& rightEvalOnly(float thetaG, float thetaO); 
+
+    inline void leftEval(float theta, float phi, float maxX, bool hasNear, float hitrange);
+    inline float rightEval(float theta, float phi, float hitrange);
+    inline void addHit(float xi, int bcount, char side, float GFactor);
+    inline bool inverseEval(float thetaO, float thetaI, int bounceCount, char side, float &thetaM, float& GFactor);
     std::vector<Hit> theHits;
 
   private:
@@ -48,7 +51,7 @@ VGroove::computeRightThetaM(float thetaO, float thetaI, int n, float &theta) {
     float xchi = -thetaI;
     if ((n+1)%2 == 1) xchi *= -1;
     theta = (Pi + thetaO - xchi) *.5/n;
-    if (theta > thetaO and theta < .5 * Pi) return true;
+    if (theta > thetaO && theta < .5 * Pi) return true;
     return false; 
 }
 
@@ -71,22 +74,25 @@ VGroove::computeThetaM(float thetaO, float thetaI, int bounceCount, char side, f
 }
 
 bool
-VGroove::inverseEval(float thetaO, float thetaI, int bounceCount, char side, float &G, float &thetaM) {
+VGroove::inverseEval(float thetaO, float thetaI, int bounceCount, char side, float &thetaM, float &GFactor) {
 
-    G = 0;
+    GFactor = 0;
+
+/*
     if (thetaO < 0) {
         thetaO = -thetaO;
         thetaI = -thetaI;
         //print('zipin expects thetaO to be positive')
     }
-
+*/
+    assert(thetaO > 0);
     if (thetaO + .0001 > .5 * Pi) return false; 
     bool validGroove = computeThetaM(thetaO, thetaI, (int) bounceCount, side, thetaM);
     if (validGroove) {
         eval(thetaM, thetaO);
         for (int i = 0; i < theHits.size(); i++) {
             if (theHits[i].isHit(thetaI, bounceCount, side)) {
-                G = theHits[i].G;
+                GFactor = theHits[i].GFactor;
                 return true; 
             }
         }
@@ -95,9 +101,9 @@ VGroove::inverseEval(float thetaO, float thetaI, int bounceCount, char side, flo
 }
 
 void 
-VGroove::addHit(float xi, int bcount, char side, float G) {
+VGroove::addHit(float xi, int bcount, char side, float GFactor) {
     
-    if (G > 1e-5) theHits.push_back( Hit(-xi, bcount, side, G));
+    if (GFactor > 1e-5) theHits.push_back( Hit(-xi, bcount, side, GFactor));
 
     //scale minInterval and maxInterval to [-1, 1] to match pat's ray tracer
     //float minInterval = interval[0]/range * 2.0;
@@ -107,7 +113,7 @@ VGroove::addHit(float xi, int bcount, char side, float G) {
 } 
 
 void 
-VGroove::farEval(float theta, float phi, float maxX, bool hasNear, float hitrange) {
+VGroove::leftEval(float theta, float phi, float maxX, bool hasNear, float hitrange) {
 
     float gAngle = 2.0 * theta;
     float psi_min = Pi - 2.0 *(theta + phi);
@@ -167,7 +173,7 @@ VGroove::farEval(float theta, float phi, float maxX, bool hasNear, float hitrang
 }
 
 float
-VGroove::nearEval(float theta, float phi, float hitrange) {
+VGroove::rightEval(float theta, float phi, float hitrange) {
 
     float gAngle = 2.0 * theta;
    
@@ -218,16 +224,32 @@ VGroove::nearEval(float theta, float phi, float hitrange) {
 
 std::vector<Hit> & 
 VGroove::eval(float thetaR, float phiR) {
-
     theHits.clear();
     float xmax = sin(thetaR);
-
     if (phiR > thetaR) {
-        farEval(thetaR, phiR, sin(thetaR), false, xmax*2);
+        leftEval(thetaR, phiR, xmax, false, xmax*2);
     } else {
-        float  x_near_min = nearEval(thetaR, phiR, xmax*2); 
-        farEval(thetaR, phiR, x_near_min, true,  xmax*2);
+        float  x_near_min = rightEval(thetaR, phiR, xmax*2); 
+        leftEval(thetaR, phiR, x_near_min, true,  xmax*2);
     }
+    return theHits;
+}
+
+std::vector<Hit> & 
+VGroove::leftEvalOnly(float thetaR, float phiR) {
+    theHits.clear();
+    bool hasNear = (phiR > thetaR);
+    float xmax = sin(thetaR);
+    float farMax = hasNear? cos(thetaR) * tan(phiR) : xmax;
+    leftEval(thetaR, phiR, xmax, hasNear, xmax*2);
+    return theHits;
+}
+
+std::vector<Hit> & 
+VGroove::rightEvalOnly(float thetaR, float phiR) {
+    theHits.clear();
+    float xmax = sin(thetaR);
+    float  x_near_min = rightEval(thetaR, phiR, xmax*2); 
     return theHits;
 }
 
@@ -236,8 +258,8 @@ class VGrooveReflection : public MicrofacetReflection {
   public:
     // MicrofacetReflection Public Methods
     VGrooveReflection(const Spectrum &R,
-                         MicrofacetDistribution *distribution, Fresnel *fresnel)
-        : MicrofacetReflection(R, distribution, fresnel) {}
+                      MicrofacetDistribution *distribution, Fresnel *fresnel, int maxBounce = 3, int minBounce = 1)
+        : MicrofacetReflection(R, distribution, fresnel), maxBounce(maxBounce), minBounce(minBounce) {}
     Spectrum f(const Vector3f &wo, const Vector3f &wi) const;
     
     Spectrum Sample_f(const Vector3f &wo, Vector3f *wi, const Point2f &u,
@@ -256,7 +278,9 @@ class VGrooveReflection : public MicrofacetReflection {
     float microfacetPdf(const Vector3f& wo, const Vector3f& wh) const;
     float computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side,
                     float& pdf) const;
-    Spectrum eval(const Vector3f &wo, const Vector3f &wi, float &pdf, int maxBounce = 3, int minBounce = 1) const;
+    Spectrum eval(const Vector3f &wo, const Vector3f &wi, float &pdf) const;
+
+    int maxBounce, minBounce;
     //VGroove theGroove;
 };
 
