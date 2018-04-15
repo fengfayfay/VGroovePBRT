@@ -243,6 +243,8 @@ struct Jacobian: public Frame{
 
 };
 
+//thetaM is in (0, .5pi) so cosThetaM > 0
+//left ZipinNormal should be the same xsign as wop, right ZipinNormal has -xsign as wop
 Vector3f computeZipinNormal(float thetaM, char side, const Vector3f& wop) {
     Vector3f n(cos(thetaM), 0, sin(thetaM));
     n.x *= wop.x > 0 ? 1: -1;
@@ -261,9 +263,9 @@ float computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, c
    // return 1.0;
     
 
-    float GFactor = 0, thetaM = 0;
-    bool valid = vgroove.inverseEval(evalFrame.theta_o, evalFrame.theta_i, bounce, side, thetaM, GFactor);    
-    if (valid) {
+    float thetaM = 0;
+    float GFactor = vgroove.inverseEval(evalFrame.theta_o, evalFrame.theta_i, bounce, side, thetaM);
+    if (GFactor > 0) {
         wm = computeZipinNormal(thetaM, side, evalFrame.wop);
         if (bounce == 1) {
             //no relation between frameTheta and thetaM (frameTheta is related to phi_h not theta_h

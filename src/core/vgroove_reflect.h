@@ -8,7 +8,7 @@ namespace pbrt{
 //cosPhi = wop.z
 
 struct Hit {
-    Hit(Float thetaR, int bounce, char side, float GFactor): 
+    Hit(float thetaR, int bounce, char side, float GFactor): 
         thetaR(thetaR), GFactor(GFactor), side(side), bounce(bounce) {};
 
     bool isHit(float thetaI, int bcount, char s) {
@@ -37,11 +37,11 @@ class VGroove {
     inline void leftEval(float theta, float phi, float maxX, bool hasNear, float hitrange);
     inline float rightEval(float theta, float phi, float hitrange);
     inline void addHit(float xi, int bcount, char side, float GFactor);
-    inline bool inverseEval(float thetaO, float thetaI, int bounceCount, char side, float &thetaM, float& GFactor);
+    inline float inverseEval(float thetaO, float thetaI, int bounceCount, char side, float &thetaM);
     std::vector<Hit> theHits;
 
   private:
-    inline static bool computeThetaM(float thetaO, float thetaI, int bounceCount, char side, float &thetaM);
+    inline static bool computeThetaM(float thetaO, float thetaI, int bounceCount, char side, float& thetaM);
     inline static bool computeRightThetaM(float thetaO, float thetaI, int bounceCount, float& theta);
     inline static bool computeLeftThetaM(float thetaO, float thetaI, int bounceCount, float& theta);
 };
@@ -73,31 +73,29 @@ VGroove::computeThetaM(float thetaO, float thetaI, int bounceCount, char side, f
     }
 }
 
-bool
-VGroove::inverseEval(float thetaO, float thetaI, int bounceCount, char side, float &thetaM, float &GFactor) {
+float
+VGroove::inverseEval(float thetaO, float thetaI, int bounceCount, char side, float &thetaM) {
 
-    GFactor = 0;
+    float GFactor = 0;
 
-/*
-    if (thetaO < 0) {
-        thetaO = -thetaO;
-        thetaI = -thetaI;
-        //print('zipin expects thetaO to be positive')
-    }
-*/
     assert(thetaO > 0);
-    if (thetaO + .0001 > .5 * Pi) return false; 
-    bool validGroove = computeThetaM(thetaO, thetaI, (int) bounceCount, side, thetaM);
-    if (validGroove) {
-        eval(thetaM, thetaO);
-        for (int i = 0; i < theHits.size(); i++) {
-            if (theHits[i].isHit(thetaI, bounceCount, side)) {
-                GFactor = theHits[i].GFactor;
-                return true; 
-            }
+    if (thetaO + .0001 > .5 * Pi) return GFactor; 
+    
+    theHits.clear();
+    if (side == 'r') {
+        bool validGroove = computeRightThetaM(thetaO, thetaI, (int) bounceCount, thetaM);
+        if (validGroove) rightEvalOnly(thetaM, thetaO);
+    } else {
+        bool validGroove = computeLeftThetaM(thetaO, thetaI, (int) bounceCount, thetaM);
+        if (validGroove) leftEvalOnly(thetaM, thetaO);
+    }
+    for (int i = 0; i < theHits.size(); i++) {
+        if (theHits[i].isHit(thetaI, bounceCount, side)) {
+            GFactor = theHits[i].GFactor;
+            return GFactor; 
         }
     }
-    return false; 
+    return GFactor; 
 }
 
 void 
@@ -238,7 +236,7 @@ VGroove::eval(float thetaR, float phiR) {
 std::vector<Hit> & 
 VGroove::leftEvalOnly(float thetaR, float phiR) {
     theHits.clear();
-    bool hasNear = (phiR > thetaR);
+    bool hasNear = (thetaR > phiR);
     float xmax = sin(thetaR);
     float farMax = hasNear? cos(thetaR) * tan(phiR) : xmax;
     leftEval(thetaR, phiR, xmax, hasNear, xmax*2);
