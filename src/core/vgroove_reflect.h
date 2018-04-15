@@ -256,8 +256,10 @@ class VGrooveReflection : public MicrofacetReflection {
   public:
     // MicrofacetReflection Public Methods
     VGrooveReflection(const Spectrum &R,
-                      MicrofacetDistribution *distribution, Fresnel *fresnel, int maxBounce = 3, int minBounce = 1)
-        : MicrofacetReflection(R, distribution, fresnel), maxBounce(maxBounce), minBounce(minBounce) {}
+                      MicrofacetDistribution *distribution, Fresnel *fresnel, 
+                      int maxBounce = 3, int minBounce = 1, bool uniSample = true) 
+        : MicrofacetReflection(R, distribution, fresnel), maxBounce(maxBounce), 
+          minBounce(minBounce), uniSample(uniSample) {}
     Spectrum f(const Vector3f &wo, const Vector3f &wi) const;
     
     Spectrum Sample_f(const Vector3f &wo, Vector3f *wi, const Point2f &u,
@@ -279,6 +281,7 @@ class VGrooveReflection : public MicrofacetReflection {
     Spectrum eval(const Vector3f &wo, const Vector3f &wi, float &pdf) const;
 
     int maxBounce, minBounce;
+    bool uniSample;
     //VGroove theGroove;
 };
 

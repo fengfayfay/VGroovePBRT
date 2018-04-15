@@ -89,7 +89,7 @@ void UberMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
         if (isVCavity) {
             spec = ARENA_ALLOC(arena, MicrofacetReflection)(ks, distrib, fresnel);
         } else {
-            spec = ARENA_ALLOC(arena, VGrooveReflection)(ks, distrib, fresnel, maxBounce, minBounce);
+            spec = ARENA_ALLOC(arena, VGrooveReflection)(ks, distrib, fresnel, maxBounce, minBounce, uniSample);
         }
         si->bsdf->Add(spec);
     }
@@ -131,12 +131,13 @@ UberMaterial *CreateUberMaterial(const TextureParams &mp) {
         mp.GetFloatTextureOrNull("bumpmap");
     bool remapRoughness = mp.FindBool("remaproughness", false);
     bool isVCavity = mp.FindBool("vcavity", false);
+    bool uniSample = mp.FindBool("uniform", true);
     int maxBounce = mp.FindInt("maxBounce", 3);
     int minBounce = mp.FindInt("minBounce", 1);
     
     
     return new UberMaterial(Kd, Ks, Kr, Kt, roughness, uroughness, vroughness,
-                            opacity, eta, bumpMap, remapRoughness, isVCavity, maxBounce, minBounce);
+                            opacity, eta, bumpMap, remapRoughness, isVCavity, maxBounce, minBounce, uniSample);
 }
 
 }  // namespace pbrt

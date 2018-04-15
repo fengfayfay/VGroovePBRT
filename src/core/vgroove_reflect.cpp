@@ -245,7 +245,8 @@ struct Jacobian: public Frame{
 
 //thetaM is in (0, .5pi) so cosThetaM > 0
 //left ZipinNormal should be the same xsign as wop, right ZipinNormal has -xsign as wop
-Vector3f computeZipinNormal(float thetaM, char side, const Vector3f& wop) {
+Vector3f 
+computeZipinNormal(float thetaM, char side, const Vector3f& wop) {
     Vector3f n(cos(thetaM), 0, sin(thetaM));
     n.x *= wop.x > 0 ? 1: -1;
     if (side == 'r' ){
@@ -254,14 +255,13 @@ Vector3f computeZipinNormal(float thetaM, char side, const Vector3f& wop) {
     return n;
 }
 
-float computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side, Vector3f& wm)
-{
+float 
+computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side, Vector3f& wm) {
 
     //debug single bounce
     
    // wm = Normalize((evalFrame.wo + evalFrame.wi)*.5);
    // return 1.0;
-    
 
     float thetaM = 0;
     float GFactor = vgroove.inverseEval(evalFrame.theta_o, evalFrame.theta_i, bounce, side, thetaM);
@@ -340,12 +340,15 @@ VGrooveReflection::Sample_f(const Vector3f &owo, Vector3f *wi, const Point2f &u,
         if (pdf) *pdf = 0;
         return Spectrum(0);
     }
-    
-    return UniSample_f(wo, wi, u, pdf, sampledType);
 
+    if (uniSample) {    
+        return UniSample_f(wo, wi, u, pdf, sampledType);
+    } 
+    
     Vector3f wh = distribution->Sample_wh(wo, u);
     *wi = Reflect(wo, wh);
     return eval(wo, *wi, *pdf);
+    
 
 
     /*
@@ -398,13 +401,14 @@ VGrooveReflection:: f(const Vector3f &wo, const Vector3f &wi) const {
 Float 
 VGrooveReflection::Pdf(const Vector3f &wo, const Vector3f &wi) const {
 
-    //TODO::uniform pdf for now    
-    return .5/Pi;
-
-    //real pdf computation
-    float pdf = 0;
-    Spectrum brdf = eval(wo, wi, pdf);
-    return pdf;
+    if (uniSample) {
+        return .5/Pi;
+    } else {
+        //real pdf computation
+        float pdf = 0;
+        Spectrum brdf = eval(wo, wi, pdf);
+        return pdf;
+    }
 }
 
 float
