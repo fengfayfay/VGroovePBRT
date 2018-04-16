@@ -23,7 +23,9 @@ struct Hit {
 
 
 inline Float stableCeiling(Float psi, Float gAngle) {
+    
     int k = int(psi/gAngle);
+    CHECK(k >= 0);
     if (psi - k * gAngle < 1e-6) return k;
     return k + 1;
 }
