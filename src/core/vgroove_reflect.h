@@ -12,7 +12,7 @@ struct Hit {
         thetaR(thetaR), GFactor(GFactor), side(side), bounce(bounce) {};
 
     bool isHit(float thetaI, int bcount, char s) {
-        return fabs(thetaR-thetaI) < 1e-4 && bounce == bcount && side == s;
+        return fabs(thetaR-thetaI) < 1e-6 && bounce == bcount && side == s;
     }
     
     float thetaR, GFactor;
@@ -24,7 +24,7 @@ struct Hit {
 
 inline Float stableCeiling(Float psi, Float gAngle) {
     int k = int(psi/gAngle);
-    if (psi - k * gAngle < 1e-3) return k;
+    if (psi - k * gAngle < 1e-6) return k;
     return k + 1;
 }
 
@@ -128,12 +128,12 @@ VGroove::leftEval(float theta, float phi, float maxX, bool hasNear, float hitran
         //equation 9 in Zipin Paper, hitrange is 2sinTheta
 
         zMax = hitrange * cos(phi)/ sinThetaPhi;
-        psi_max -= sin((1.0-zMax) * sinThetaPhi);
+        psi_max -= asin((1.0-zMax) * sinThetaPhi);
     } 
 
     //print(mt.degrees(psi_min), mt.degrees(psi_max))
 
-    int n_min= stableCeiling(psi_min, gAngle);
+    int n_min = stableCeiling(psi_min, gAngle);
     int n_max = stableCeiling(psi_max, gAngle);
     
     //if n_max - n_min > 1:
@@ -279,6 +279,8 @@ class VGrooveReflection : public MicrofacetReflection {
     float computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side,
                     float& pdf) const;
     Spectrum eval(const Vector3f &wo, const Vector3f &wi, float &pdf) const;
+
+    float computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side, Vector3f& wm) const;
 
     int maxBounce, minBounce;
     bool uniSample;

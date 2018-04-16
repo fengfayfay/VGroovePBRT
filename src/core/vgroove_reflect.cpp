@@ -75,7 +75,7 @@ struct Frame {
 };
     
 struct EvalFrame : public Frame {
-    EvalFrame(const Vector3f& owo, const Vector3f& owi, bool autoFlip = true) {
+    EvalFrame(const Vector3f& owo, const Vector3f& owi, bool autoFlip = true) : owo(owo), owi(owi) {
         wo = Normalize(owo);
         wi = Normalize(owi);
         
@@ -112,7 +112,7 @@ struct EvalFrame : public Frame {
         }
     }
 
-    Vector3f wo, wi, wop, wip;
+    Vector3f wo, wi, wop, wip, owo, owi;
     float theta_o, theta_i;
     bool flipped;
     //float theta_or, phi_o, theta_ir, phi_i;
@@ -256,23 +256,20 @@ computeZipinNormal(float thetaM, char side, const Vector3f& wop) {
 }
 
 float 
-computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side, Vector3f& wm) {
+VGrooveReflection::computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side, Vector3f& wm) const {
 
     //debug single bounce
-    
-   // wm = Normalize((evalFrame.wo + evalFrame.wi)*.5);
-   // return 1.0;
 
     float thetaM = 0;
     float GFactor = vgroove.inverseEval(evalFrame.theta_o, evalFrame.theta_i, bounce, side, thetaM);
+    
     if (GFactor > 0) {
         wm = computeZipinNormal(thetaM, side, evalFrame.wop);
         if (bounce == 1) {
             //no relation between frameTheta and thetaM (frameTheta is related to phi_h not theta_h
-            //assert((fabs(evalFrame.frameTheta) - fabs(thetaM)) < 1e-3);
             Vector3f wh = Normalize((evalFrame.wo + evalFrame.wi)*.5);
             float mh = Dot(wm, wh);
-            assert(fabs(mh - 1) < 1e-3);
+            assert(fabs(mh - 1) < 1e-5);
         }
     }
     return GFactor;
@@ -284,7 +281,7 @@ VGrooveReflection::computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroov
                     float& pdf) const {
     Vector3f wm;
     float GFactor = computeGFactor(evalFrame, vgroove, bounce, side, wm);
-    float brdf = 0;
+    float brdf(0);
     if (GFactor > 0) {
         float value = microfacetReflectionWithoutG(evalFrame.wo, evalFrame.wi, wm);
         float mpdf = microfacetPdf(evalFrame.wo, wm);
@@ -293,20 +290,24 @@ VGrooveReflection::computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroov
         if (bounce == 1) {
             assert(fabs(J -1) < .001);
         }
-
-        //4 is due to the single bounce jacobian accountment in the microfacetReflection* functions
         brdf = value * J * GFactor;
         pdf = mpdf * J * GFactor;     
     }
+    //brdf = MicrofacetReflection::f(evalFrame.wo, evalFrame.wi);
     return brdf;
 }
 
 Spectrum 
 VGrooveReflection::eval(const Vector3f &wo, const Vector3f &wi, float& pdf) const {
 
-    VGroove vgroove;
     EvalFrame evalFrame(wo, wi);
-    float brdf = 0;
+
+    //debug mode to compare with vcavity G
+    //pdf = .5/Pi;
+    //return MicrofacetReflection::f(evalFrame.wo, evalFrame.wi);
+
+    VGroove vgroove;
+    float brdf(0);
     pdf = 0;
     for (int n = minBounce; n<=maxBounce; n++) {
         float tpdf; 

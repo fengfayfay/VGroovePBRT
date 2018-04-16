@@ -83,7 +83,8 @@ void UberMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
             roughu = BeckmannDistribution::RoughnessToAlpha(roughu);
             roughv = BeckmannDistribution::RoughnessToAlpha(roughv);
         }
-        MicrofacetDistribution *distrib = ARENA_ALLOC(arena, BeckmannDistribution)(roughu, roughv, false, isVCavity);
+        //MicrofacetDistribution *distrib = ARENA_ALLOC(arena, BeckmannDistribution)(roughu, roughv, false, isVCavity);
+        MicrofacetDistribution *distrib = ARENA_ALLOC(arena, BeckmannDistribution)(roughu, roughv, false, true);
 
         BxDF *spec = NULL;
         if (isVCavity) {
