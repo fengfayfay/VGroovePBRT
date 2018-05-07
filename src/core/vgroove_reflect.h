@@ -53,7 +53,7 @@ VGroove::computeRightThetaM(float thetaO, float thetaI, int n, float &theta) {
     float xchi = -thetaI;
     if ((n+1)%2 == 1) xchi *= -1;
     theta = (Pi + thetaO - xchi) *.5/n;
-    if (theta > thetaO && theta < .5 * Pi) return true;
+    if (theta > thetaO && theta < .5 * Pi + 1e-6) return true;
     return false; 
 }
 
@@ -62,7 +62,7 @@ VGroove::computeLeftThetaM(float thetaO, float thetaI, int n, float& theta) {
     float xchi = -thetaI;
     if (n%2 == 1) xchi *= -1;
     theta = (Pi - thetaO - xchi) *.5/n;
-    if (theta > 1e-6 && theta < .5 * Pi) return true;
+    if (theta > 1e-6 && theta < .5 * Pi + 1e-6) return true;
     return false;
 } 
 
@@ -284,9 +284,48 @@ class VGrooveReflection : public MicrofacetReflection {
 
     float computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side, Vector3f& wm) const;
 
+    
+
     int maxBounce, minBounce;
     bool uniSample;
+    //RNG rng;
     //VGroove theGroove;
 };
+
+
+/*
+struct IndexWeight {
+    int index;
+    float weight;
+    float accweight;
+};
+
+float sampleHits(std::vector<Hit> &hits, int& index, int maxBounce, int minBounce) {
+    float u = rng.UniformFloat();
+    std::vector<IndexWeight> weights;
+  
+    float tw = 0; 
+    for (int i = 0; i < hits.size(); i++) {
+        if (hits[i].bounce >= minBounce && hits[i].bounce <= maxBounce){
+            tw += hits[i].GFactor;
+            weights.push_back(IndexWeight(i, hits[i].GFactor, tw);
+        }
+    }
+    if (weights.size() == 1) {
+        index = weights[0].index;
+        return 1;
+    } else {
+        CHECK(weights.size() == 2);
+        float weight0 = weights[0].weight/tw;
+        if (u < weight0) {
+            index = weights[0].index;
+            return weight0;
+        } else {
+            index = weights[1].index;
+            return 1.0 - weight0;
+        } 
+    }
+}
+*/
 
 }//end of namespace pbrt

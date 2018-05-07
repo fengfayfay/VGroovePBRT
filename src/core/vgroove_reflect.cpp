@@ -232,7 +232,7 @@ struct Jacobian: public Frame{
 
         //assert(vec3.Equal(wr, wi))
         float denom = fabs(dxy.x * dxy.y);
-        if (denom < 1e-6) return 0;
+        if (denom < 1e-7) return 1;
         float nom = fabs(wi.z);
         float jacobian = nom/denom;
         return jacobian;
@@ -430,5 +430,28 @@ VGrooveReflection::microfacetPdf(const Vector3f& wo, const Vector3f& wh) const {
     if (factor < 1e-5) return 0;
     return distribution->Pdf(wo, wh) / (4 * Dot(wo, wh));        
 }
+
+/*
+void
+VGroove::saveOutHits(float theta, float phi) {
+}
+
+void 
+VGroove::VGrooveTest() {
+
+    float phi_offset = 0.6;
+    float theta_offset = 0.3;
+    for (int i = 0; i < 90; i++) {
+        float theta = radians(theta_offset + i);
+        for (int j = 0; j < 90; j++) {
+            float phi = radians(phi_offset + j);
+            leftHitOnly(theta, phi);
+            saveOut(theta, phi, theHits);  
+            rightHitOnly(theta, phi);
+            saveOut(theta, phi, theHits);  
+        }
+    }
+}
+*/       
 
 } //end namespace
