@@ -140,7 +140,7 @@ UberMaterial *CreateUberMaterial(const TextureParams &mp) {
     int maxBounce = mp.FindInt("maxBounce", 3);
     int minBounce = mp.FindInt("minBounce", 1);
 
-    bool useBeckmann = mp.FindBool("useBeckman", true);
+    bool useBeckmann = mp.FindBool("useBeckmann", true);
     
     return new UberMaterial(Kd, Ks, Kr, Kt, roughness, uroughness, vroughness,
                             opacity, eta, bumpMap, remapRoughness, isVCavity, maxBounce, minBounce, uniSample, useBeckmann);
