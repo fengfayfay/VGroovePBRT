@@ -284,6 +284,7 @@ VGrooveReflection::computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroov
     float brdf(0);
     if (GFactor > 0) {
         float value = microfacetReflectionWithoutG(evalFrame.owo, evalFrame.owi, evalFrame.localToWorld(wm));
+        //float value = microfacetReflectionWithoutG(evalFrame.wo, evalFrame.wi, wm);
         float mpdf = microfacetPdf(evalFrame.wo, wm);
         Jacobian jacobian(evalFrame.wo, evalFrame.wi, wm);
         float J = jacobian.computeJacobian(bounce) * Dot(evalFrame.wo, wm) * 4;
@@ -301,7 +302,7 @@ Spectrum
 VGrooveReflection::eval(const Vector3f &wo, const Vector3f &wi, float& pdf) const {
     //pdf = .5/Pi;
     //return MicrofacetReflection::f(wo, wi);
-
+    if (!SameHemisphere(wo, wi)) return Spectrum(0.f);
     EvalFrame evalFrame(wo, wi);
 
     VGroove vgroove;
