@@ -58,7 +58,7 @@ class UberMaterial : public Material {
                  const std::shared_ptr<Texture<Float>> &eta,
                  const std::shared_ptr<Texture<Float>> &bumpMap,
                  bool remapRoughness,
-                 bool isVCavity = false, int maxBounce = 3, int minBounce = 1, bool uniSample=true)
+                 bool isVCavity = false, int maxBounce = 3, int minBounce = 1, bool uniSample=true, bool useBeckmann = true)
         : Kd(Kd),
           Ks(Ks),
           Kr(Kr),
@@ -70,7 +70,7 @@ class UberMaterial : public Material {
           eta(eta),
           bumpMap(bumpMap),
           remapRoughness(remapRoughness),
-          isVCavity(isVCavity), maxBounce(maxBounce), minBounce(minBounce), uniSample(uniSample) {}
+          isVCavity(isVCavity), maxBounce(maxBounce), minBounce(minBounce), uniSample(uniSample), useBeckmann(useBeckmann) {}
 
     void ComputeScatteringFunctions(SurfaceInteraction *si, MemoryArena &arena,
                                     TransportMode mode,
@@ -85,6 +85,7 @@ class UberMaterial : public Material {
     bool isVCavity;
     int maxBounce, minBounce;
     bool uniSample;
+    bool useBeckmann;
 };
 
 UberMaterial *CreateUberMaterial(const TextureParams &mp);

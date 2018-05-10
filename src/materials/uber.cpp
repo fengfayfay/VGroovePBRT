@@ -84,8 +84,12 @@ void UberMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
             roughv = BeckmannDistribution::RoughnessToAlpha(roughv);
         }
         //MicrofacetDistribution *distrib = ARENA_ALLOC(arena, BeckmannDistribution)(roughu, roughv, false, isVCavity);
-        MicrofacetDistribution *distrib = ARENA_ALLOC(arena, BeckmannDistribution)(roughu, roughv, false, true);
-
+        MicrofacetDistribution *distrib = NULL;
+        if (useBeckmann) {
+            distrib = ARENA_ALLOC(arena, BeckmannDistribution)(roughu, roughv, false, true);
+        } else {
+            distrib = ARENA_ALLOC(arena, TrowbridgeReitzDistribution)(roughu, roughv, false, true);
+        }
         BxDF *spec = NULL;
         if (isVCavity) {
             spec = ARENA_ALLOC(arena, MicrofacetReflection)(ks, distrib, fresnel);
@@ -135,10 +139,11 @@ UberMaterial *CreateUberMaterial(const TextureParams &mp) {
     bool uniSample = mp.FindBool("uniform", true);
     int maxBounce = mp.FindInt("maxBounce", 3);
     int minBounce = mp.FindInt("minBounce", 1);
-    
+
+    bool useBeckmann = mp.FindBool("useBeckman", true);
     
     return new UberMaterial(Kd, Ks, Kr, Kt, roughness, uroughness, vroughness,
-                            opacity, eta, bumpMap, remapRoughness, isVCavity, maxBounce, minBounce, uniSample);
+                            opacity, eta, bumpMap, remapRoughness, isVCavity, maxBounce, minBounce, uniSample, useBeckmann);
 }
 
 }  // namespace pbrt
