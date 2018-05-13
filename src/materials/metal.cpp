@@ -34,6 +34,7 @@
 // materials/metal.cpp*
 #include "materials/metal.h"
 #include "reflection.h"
+#include "vgroove_reflect.h"
 #include "paramset.h"
 #include "texture.h"
 #include "interaction.h"
@@ -47,14 +48,17 @@ MetalMaterial::MetalMaterial(const std::shared_ptr<Texture<Spectrum>> &eta,
                              const std::shared_ptr<Texture<Float>> &uRoughness,
                              const std::shared_ptr<Texture<Float>> &vRoughness,
                              const std::shared_ptr<Texture<Float>> &bumpMap,
-                             bool remapRoughness)
+                             bool remapRoughness,
+                             bool isVCavity, int maxBounce, int minBounce, 
+                             bool uniSample, bool useBeckmann, bool noFresnel)
     : eta(eta),
       k(k),
       roughness(roughness),
       uRoughness(uRoughness),
       vRoughness(vRoughness),
       bumpMap(bumpMap),
-      remapRoughness(remapRoughness) {}
+      remapRoughness(remapRoughness),
+      isVCavity(isVCavity), maxBounce(maxBounce), minBounce(minBounce), uniSample(uniSample), useBeckmann(useBeckmann), noFresnel(noFresnel) {}
 
 void MetalMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
                                                MemoryArena &arena,
@@ -69,14 +73,35 @@ void MetalMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
     Float vRough =
         vRoughness ? vRoughness->Evaluate(*si) : roughness->Evaluate(*si);
     if (remapRoughness) {
-        uRough = TrowbridgeReitzDistribution::RoughnessToAlpha(uRough);
-        vRough = TrowbridgeReitzDistribution::RoughnessToAlpha(vRough);
+        if (useBeckmann) {
+            uRough = BeckmannDistribution::RoughnessToAlpha(uRough);
+            vRough = BeckmannDistribution::RoughnessToAlpha(vRough);
+        } else {
+            uRough = TrowbridgeReitzDistribution::RoughnessToAlpha(uRough);
+            vRough = TrowbridgeReitzDistribution::RoughnessToAlpha(vRough);
+        }
     }
-    Fresnel *frMf = ARENA_ALLOC(arena, FresnelConductor)(1., eta->Evaluate(*si),
+    Fresnel *frMf = NULL;
+    if (noFresnel) {
+        frMf = ARENA_ALLOC(arena, FresnelNoOp)();
+    } else {
+        frMf = ARENA_ALLOC(arena, FresnelConductor)(1., eta->Evaluate(*si),
                                                          k->Evaluate(*si));
-    MicrofacetDistribution *distrib =
-        ARENA_ALLOC(arena, TrowbridgeReitzDistribution)(uRough, vRough);
-    si->bsdf->Add(ARENA_ALLOC(arena, MicrofacetReflection)(1., distrib, frMf));
+    }
+    MicrofacetDistribution *distrib = NULL;
+    if (useBeckmann) {
+        distrib = ARENA_ALLOC(arena, BeckmannDistribution)(uRough, vRough);
+    } else {
+        distrib = ARENA_ALLOC(arena, TrowbridgeReitzDistribution)(uRough, vRough);
+    }
+    
+    BxDF *spec = NULL;
+    if (isVCavity) {
+        spec = ARENA_ALLOC(arena, MicrofacetReflection)(1., distrib, frMf);
+    } else {
+        spec = ARENA_ALLOC(arena, VGrooveReflection)(1., distrib, frMf, maxBounce, minBounce, uniSample);
+    }
+    si->bsdf->Add(spec);
 }
 
 const int CopperSamples = 56;
@@ -128,9 +153,17 @@ MetalMaterial *CreateMetalMaterial(const TextureParams &mp) {
         mp.GetFloatTextureOrNull("vroughness");
     std::shared_ptr<Texture<Float>> bumpMap =
         mp.GetFloatTextureOrNull("bumpmap");
-    bool remapRoughness = mp.FindBool("remaproughness", true);
+    bool remapRoughness = mp.FindBool("remaproughness", false);
+
+    bool isVCavity = mp.FindBool("vcavity", false);
+    bool uniSample = mp.FindBool("uniform", true);
+    bool noFresnel = mp.FindBool("noFresnel", false);
+    int maxBounce = mp.FindInt("maxBounce", 3);
+    int minBounce = mp.FindInt("minBounce", 1);
+
+    bool useBeckmann = mp.FindBool("useBeckman", false);
     return new MetalMaterial(eta, k, roughness, uRoughness, vRoughness, bumpMap,
-                             remapRoughness);
+                             remapRoughness, isVCavity, maxBounce, minBounce, uniSample, useBeckmann, noFresnel);
 }
 
 }  // namespace pbrt

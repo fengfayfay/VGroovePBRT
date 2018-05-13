@@ -171,7 +171,7 @@ struct SampleFrame:public Frame {
 };
 
 struct Jacobian: public Frame{
-    Jacobian(const Vector3f& owo, const Vector3f& owi, const Vector3f& owh): owo(owo), owi(owi), owh(owh) {
+    Jacobian(const Vector3f& owo, const Vector3f& owi, const Vector3f& owh, const Fresnel* fresnel): owo(owo), owi(owi), owh(owh), fresnel(fresnel) {
 
         //Vector3f owhp = Vector3f(-wh.x, 0, wh.z);
         //wih = vec3.dot(wi, wh)
@@ -199,19 +199,21 @@ struct Jacobian: public Frame{
         return (bounce % 2) ? H: HP;
     }
 
-    Vector2f computeDxaDya(int bounce, Vector3f&w) {
+    Vector2f computeDxaDya(int bounce, Vector3f&w, Spectrum& F) {
         if (bounce == 0) {
             w = -wo;
+            F = Spectrum(1.);
             return Vector2f(0, 0);    
         } else {
             Vector3f wp;
-            Vector2f pDxDy = computeDxaDya(bounce - 1, wp);
+            Vector2f pDxDy = computeDxaDya(bounce - 1, wp, F);
             float pDxdxa = pDxDy.x;
             float pDydya = pDxDy.y;
 
             Vector3f h = getH(bounce);
             float kp = Dot(wp, h);
             w = Reflect(-wp, h);
+            if (fresnel) F *= fresnel->Evaluate(Dot(w, h));
             float dxdxa = 0, dydya = 0;
             if (bounce % 2 == 0) {
                 float pDzdxa = -wp.x/wp.z * pDxdxa;
@@ -226,9 +228,9 @@ struct Jacobian: public Frame{
         }
     }
 
-    float computeJacobian(int bounce) {
+    float computeJacobian(int bounce, Spectrum& F) {
         Vector3f wr;
-        Vector2f dxy = computeDxaDya(bounce, wr);
+        Vector2f dxy = computeDxaDya(bounce, wr, F);
 
         //assert(vec3.Equal(wr, wi))
         float denom = fabs(dxy.x * dxy.y);
@@ -238,6 +240,7 @@ struct Jacobian: public Frame{
         return jacobian;
     }
 
+    const Fresnel* fresnel;
     Vector3f N, Ng, H, HP, wo, wi, owo, owi, owh;
     float dxpdxa, dypdya, dzpdxa;
 
@@ -264,13 +267,16 @@ VGrooveReflection::computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, 
     float GFactor = vgroove.inverseEval(evalFrame.theta_o, evalFrame.theta_i, bounce, side, thetaM);
     
     if (GFactor > 0) {
+        GFactor = std::min(1.0f, GFactor);
         wm = computeZipinNormal(thetaM, side, evalFrame.wop);
+        /*
         if (bounce == 1) {
             //no relation between frameTheta and thetaM (frameTheta is related to phi_h not theta_h
             Vector3f wh = Normalize((evalFrame.wo + evalFrame.wi)*.5);
             float mh = Dot(wm, wh);
             assert(fabs(mh - 1) < 1e-5);
         }
+        */
     }
     return GFactor;
 }
@@ -278,15 +284,15 @@ VGrooveReflection::computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, 
 
 float 
 VGrooveReflection::computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side, 
-                    float& pdf) const {
+                    float& pdf, Spectrum &F) const {
     Vector3f wm;
     float GFactor = computeGFactor(evalFrame, vgroove, bounce, side, wm);
     float brdf(0);
     if (GFactor > 0) {
         float value = microfacetReflectionWithoutG(evalFrame.wo, evalFrame.wi, wm);
         float mpdf = microfacetPdf(evalFrame.wo, wm);
-        Jacobian jacobian(evalFrame.wo, evalFrame.wi, wm);
-        float J = jacobian.computeJacobian(bounce) * Dot(evalFrame.wo, wm) * 4;
+        Jacobian jacobian(evalFrame.wo, evalFrame.wi, wm, fresnel);
+        float J = jacobian.computeJacobian(bounce, F) * Dot(evalFrame.wo, wm) * 4;
         if (bounce == 1) {
             assert(fabs(J -1) < .001);
         }
@@ -307,16 +313,17 @@ VGrooveReflection::eval(const Vector3f &wo, const Vector3f &wi, float& pdf) cons
     //return MicrofacetReflection::f(evalFrame.wo, evalFrame.wi);
 
     VGroove vgroove;
-    float brdf(0);
+    Spectrum brdf(0);
     pdf = 0;
     for (int n = minBounce; n<=maxBounce; n++) {
         float tpdf; 
-        float tbrdf = computeBounceBrdf(evalFrame, vgroove, n, 'r', tpdf);
-        brdf += tbrdf;
+        Spectrum F;
+        float tbrdf = computeBounceBrdf(evalFrame, vgroove, n, 'r', tpdf, F);
+        brdf += tbrdf * F;
         pdf += tpdf;
-        if (n == 1 && brdf > 0) continue;
-        tbrdf = computeBounceBrdf(evalFrame, vgroove, n, 'l', tpdf);
-        brdf += tbrdf;
+        if (n == 1 && tbrdf > 0) continue;
+        tbrdf = computeBounceBrdf(evalFrame, vgroove, n, 'l', tpdf, F);
+        brdf += tbrdf * F;
         pdf += tpdf;
     }
     return Spectrum(brdf);

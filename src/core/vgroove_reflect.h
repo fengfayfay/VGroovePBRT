@@ -279,7 +279,7 @@ class VGrooveReflection : public MicrofacetReflection {
                    const Vector3f& wh) const;
     float microfacetPdf(const Vector3f& wo, const Vector3f& wh) const;
     float computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side,
-                    float& pdf) const;
+                    float& pdf, Spectrum& F) const;
     Spectrum eval(const Vector3f &wo, const Vector3f &wi, float &pdf) const;
 
     float computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side, Vector3f& wm) const;

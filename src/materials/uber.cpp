@@ -69,7 +69,12 @@ void UberMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
 
     Spectrum ks = op * Ks->Evaluate(*si).Clamp();
     if (!ks.IsBlack()) {
-        Fresnel *fresnel = ARENA_ALLOC(arena, FresnelDielectric)(1.f, e);
+        Fresnel *fresnel = NULL;
+        if (noFresnel) {
+            fresnel =  ARENA_ALLOC(arena, FresnelNoOp)();
+        } else {
+            fresnel = ARENA_ALLOC(arena, FresnelDielectric)(1.f, e);
+        }
         Float roughu, roughv;
         if (roughnessu)
             roughu = roughnessu->Evaluate(*si);
@@ -80,10 +85,14 @@ void UberMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
         else
             roughv = roughu;
         if (remapRoughness) {
-            roughu = BeckmannDistribution::RoughnessToAlpha(roughu);
-            roughv = BeckmannDistribution::RoughnessToAlpha(roughv);
+            if (useBeckmann) {
+                roughu = BeckmannDistribution::RoughnessToAlpha(roughu);
+                roughv = BeckmannDistribution::RoughnessToAlpha(roughv);
+            } else {
+                roughu = TrowbridgeReitzDistribution::RoughnessToAlpha(roughu);
+                roughv = TrowbridgeReitzDistribution::RoughnessToAlpha(roughv);
+            }
         }
-        //MicrofacetDistribution *distrib = ARENA_ALLOC(arena, BeckmannDistribution)(roughu, roughv, false, isVCavity);
         MicrofacetDistribution *distrib = NULL;
         if (useBeckmann) {
             distrib = ARENA_ALLOC(arena, BeckmannDistribution)(roughu, roughv, false, true);
@@ -141,9 +150,10 @@ UberMaterial *CreateUberMaterial(const TextureParams &mp) {
     int minBounce = mp.FindInt("minBounce", 1);
 
     bool useBeckmann = mp.FindBool("useBeckman", true);
+    bool noFresnel = mp.FindBool("noFresnel", false);
     
     return new UberMaterial(Kd, Ks, Kr, Kt, roughness, uroughness, vroughness,
-                            opacity, eta, bumpMap, remapRoughness, isVCavity, maxBounce, minBounce, uniSample, useBeckmann);
+                            opacity, eta, bumpMap, remapRoughness, isVCavity, maxBounce, minBounce, uniSample, useBeckmann, noFresnel);
 }
 
 }  // namespace pbrt
