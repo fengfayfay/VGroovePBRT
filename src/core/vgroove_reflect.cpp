@@ -62,10 +62,10 @@ struct Frame {
         w2l = RotateY(frameTheta * 180.0/Pi);
     }
 
-    Vector3f worldToLocal(const Vector3f& wW) {
+    Vector3f worldToLocal(const Vector3f& wW) const{
         return w2l(wW);
     }
-    Vector3f localToWorld(const Vector3f& wl) {
+    Vector3f localToWorld(const Vector3f& wl) const {
         //this is a bit of hack to take advantage of rotation being symmetric
         Normal3f N(wl.x, wl.y, wl.z);
         return Vector3f(w2l(N));
@@ -289,7 +289,8 @@ VGrooveReflection::computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroov
     float GFactor = computeGFactor(evalFrame, vgroove, bounce, side, wm);
     float brdf(0);
     if (GFactor > 0) {
-        float value = microfacetReflectionWithoutG(evalFrame.wo, evalFrame.wi, wm);
+        float value = microfacetReflectionWithoutG(evalFrame.owo, evalFrame.owi, evalFrame.localToWorld(wm));
+        //float value = microfacetReflectionWithoutG(evalFrame.wo, evalFrame.wi, wm);
         float mpdf = microfacetPdf(evalFrame.wo, wm);
         Jacobian jacobian(evalFrame.wo, evalFrame.wi, wm, fresnel);
         float J = jacobian.computeJacobian(bounce, F) * Dot(evalFrame.wo, wm) * 4;
@@ -305,12 +306,10 @@ VGrooveReflection::computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroov
 
 Spectrum 
 VGrooveReflection::eval(const Vector3f &wo, const Vector3f &wi, float& pdf) const {
-
-    EvalFrame evalFrame(wo, wi);
-
-    //debug mode to compare with vcavity G
     //pdf = .5/Pi;
-    //return MicrofacetReflection::f(evalFrame.wo, evalFrame.wi);
+    //return MicrofacetReflection::f(wo, wi);
+    if (!SameHemisphere(wo, wi)) return Spectrum(0.f);
+    EvalFrame evalFrame(wo, wi);
 
     VGroove vgroove;
     Spectrum brdf(0);
