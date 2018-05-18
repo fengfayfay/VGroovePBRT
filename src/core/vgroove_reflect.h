@@ -80,7 +80,7 @@ VGroove::inverseEval(float thetaO, float thetaI, int bounceCount, char side, flo
 
     float GFactor = 0;
 
-    assert(thetaO > 0);
+    CHECK(thetaO > 0);
     if (thetaO + .0001 > .5 * Pi) return GFactor; 
     
     theHits.clear();
@@ -103,7 +103,7 @@ VGroove::inverseEval(float thetaO, float thetaI, int bounceCount, char side, flo
 void 
 VGroove::addHit(float xi, int bcount, char side, float GFactor) {
     
-    if (GFactor > 1e-5) theHits.push_back( Hit(-xi, bcount, side, GFactor));
+    if (GFactor > 1e-5) theHits.push_back( Hit(-xi, bcount, side, std::min(1.0f, GFactor)));
 
     //scale minInterval and maxInterval to [-1, 1] to match pat's ray tracer
     //float minInterval = interval[0]/range * 2.0;
