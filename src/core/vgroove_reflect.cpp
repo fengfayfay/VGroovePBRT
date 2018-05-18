@@ -1,3 +1,4 @@
+#include<stdio.h>
 #include <sampling.h>
 #include "vgroove_reflect.h"
 
@@ -126,7 +127,8 @@ struct SampleFrame:public Frame {
         createRotationZ(owh);
 
         wo = worldToLocal(wo);
-        wh = worldToLocal(wh);
+        wh = worldToLocal(owh);
+
         assert(wh.y < 1e-5);
 
         wop = Normalize(Vector3f(wo.x, 0, wo.z));
@@ -258,6 +260,15 @@ computeZipinNormal(float thetaM, char side, const Vector3f& wop) {
     return n;
 }
 
+VGrooveReflection::VGrooveReflection(const Spectrum &R,
+                      MicrofacetDistribution *distribution, Fresnel *fresnel,
+                      int maxBounce, int minBounce, bool uniSample)
+        : MicrofacetReflection(R, distribution, fresnel), maxBounce(maxBounce),
+          minBounce(minBounce), uniSample(uniSample) { 
+    srand(time(NULL)); 
+}
+
+
 float 
 VGrooveReflection::computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side, Vector3f& wm) const {
 
@@ -306,6 +317,7 @@ VGrooveReflection::computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroov
 
 Spectrum 
 VGrooveReflection::eval(const Vector3f &wo, const Vector3f &wi, float& pdf) const {
+
     //pdf = .5/Pi;
     //return MicrofacetReflection::f(wo, wi);
     if (!SameHemisphere(wo, wi)) return Spectrum(0.f);
@@ -332,9 +344,25 @@ VGrooveReflection::eval(const Vector3f &wo, const Vector3f &wi, float& pdf) cons
 int weightedRandomChoice(std::vector<Hit> hits, int maxBounce, int minBounce, float& prob)
 {
     //float u = .5;
-    if (hits.size() >0) {
+    prob = 0;
+
+    int hitCount = hits.size();
+    if (hitCount == 1) {
+        prob = 1;
         return 0;
     }
+
+    if (hitCount == 2) {
+        float u1 = ((float) rand()/(RAND_MAX));
+        if (u1 < hits[0].GFactor) {
+            prob = hits[0].GFactor;
+            return 0;
+        } else {
+            prob = hits[1].GFactor;
+            return 1;
+        }
+    } 
+
     return -1;
 }
 
@@ -350,42 +378,47 @@ VGrooveReflection::Sample_f(const Vector3f &owo, Vector3f *wi, const Point2f &u,
 
     if (uniSample) {    
         return UniSample_f(wo, wi, u, pdf, sampledType);
-    } 
-    
+    } else { 
+   
     Vector3f wh = distribution->Sample_wh(wo, u);
-    *wi = Reflect(wo, wh);
-    return eval(wo, *wi, *pdf);
+    //*wi = Reflect(wo, wh);
+    //return eval(wo, *wi, *pdf);
     
-
-
-    /*
     SampleFrame sampleFrame(wo, wh);
     float grooveTheta = asin(wh.z);
     VGroove vgroove;
-    vgroove.eval(grooveTheta, sampleFrame.theta_o);
+    if (sampleFrame.wh.x >0) {
+        vgroove.leftEvalOnly(grooveTheta, sampleFrame.theta_o);
+    } else {
+        vgroove.rightEvalOnly(grooveTheta, sampleFrame.theta_o);
+    }
     float prob;
 
     //need to make sure the function below is doing the right thing
     //should i only choose from one side of the groove? since wh is only
     //on one side I think so.
-    int choice = weightedRandomChoice(vgroove.theHits, 3, 1, prob);
-    if (choice >= 0) {
-        Hit hit = vgroove.theHits[choice];
-        *wi = sampleFrame.constructWi(hit.thetaR); 
-        float brdf = microfacetReflectionWithoutG(wo, *wi, wh);
-        float tpdf = microfacetPdf(wo, wh);
-        Jacobian jacobian(wo, *wi, wh);
-        Float J = jacobian.computeJacobian(hit.bounce);
-        brdf *= hit.G * J * 4;
-        tpdf *= prob * J * 4;
+    if (vgroove.theHits.size() > 0) {
+        int choice = weightedRandomChoice(vgroove.theHits, 3, 1, prob);
+        if (choice >= 0) {
+            Hit hit = vgroove.theHits[choice];
+            if (hit.bounce >= minBounce && hit.bounce <= maxBounce) {
+            *wi = sampleFrame.constructWi(hit.thetaR); 
+            float brdf = microfacetReflectionWithoutG(wo, *wi, wh);
+            float tpdf = microfacetPdf(wo, wh);
+            Jacobian jacobian(wo, *wi, wh, fresnel);
+            Spectrum F;
+            float J = jacobian.computeJacobian(hit.bounce, F) * Dot(wo, wh) * 4;
+            brdf *= hit.GFactor * J;
+            tpdf *= prob * J;
 
-        if (pdf) *pdf = tpdf;
-        return R*brdf;
-    } else {
-        if (pdf) *pdf = 0;
-        return Spectrum(0);
+            if (pdf) *pdf = tpdf;
+            return R*F*brdf;
+            }
+        }
     }
-    */
+    if (pdf) *pdf = 0;
+    return Spectrum(0);
+    }
 }
 
 Spectrum 
@@ -408,6 +441,9 @@ VGrooveReflection:: f(const Vector3f &wo, const Vector3f &wi) const {
 Float 
 VGrooveReflection::Pdf(const Vector3f &wo, const Vector3f &wi) const {
 
+    return .5/Pi;
+
+    //always return uniform pdf for MIS for now
     if (uniSample) {
         return .5/Pi;
     } else {

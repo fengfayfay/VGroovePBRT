@@ -100,6 +100,7 @@
 #include "shapes/sphere.h"
 #include "shapes/triangle.h"
 #include "shapes/plymesh.h"
+#include "shapes/vgroove.h"
 #include "textures/bilerp.h"
 #include "textures/checkerboard.h"
 #include "textures/constant.h"
@@ -531,6 +532,9 @@ std::vector<std::shared_ptr<Shape>> MakeShapes(const std::string &name,
                                   reverseOrientation, paramSet);
     else if (name == "nurbs")
         shapes = CreateNURBS(object2world, world2object, reverseOrientation,
+                             paramSet);
+    else if (name == "vgroove")
+        shapes = CreateVGroove(object2world, world2object, reverseOrientation,
                              paramSet);
     else
         Warning("Shape \"%s\" unknown.", name.c_str());
