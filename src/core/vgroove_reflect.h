@@ -39,7 +39,8 @@ class VGroove {
     inline void leftEval(float theta, float phi, float maxX, bool hasNear, float hitrange);
     inline float rightEval(float theta, float phi, float hitrange);
     inline void addHit(float xi, int bcount, char side, float GFactor);
-    inline float inverseEval(float thetaO, float thetaI, int bounceCount, char side, float &thetaM);
+    inline float inverseEval(float thetaO, float thetaI, int bounceCount, char side, float& thetaM, 
+                             float& NGFactor, int maxBounce, int minBounce);
     std::vector<Hit> theHits;
 
   private:
@@ -76,11 +77,13 @@ VGroove::computeThetaM(float thetaO, float thetaI, int bounceCount, char side, f
 }
 
 float
-VGroove::inverseEval(float thetaO, float thetaI, int bounceCount, char side, float &thetaM) {
+VGroove::inverseEval(float thetaO, float thetaI, int bounceCount, char side, float &thetaM, 
+                     float &NGFactor, int maxBounce, int minBounce) {
 
     float GFactor = 0;
+    NGFactor = 0;
 
-    CHECK(thetaO > 0);
+    CHECK(thetaO >= 0);
     if (thetaO + .0001 > .5 * Pi) return GFactor; 
     
     theHits.clear();
@@ -91,11 +94,16 @@ VGroove::inverseEval(float thetaO, float thetaI, int bounceCount, char side, flo
         bool validGroove = computeLeftThetaM(thetaO, thetaI, (int) bounceCount, thetaM);
         if (validGroove) leftEvalOnly(thetaM, thetaO);
     }
+    float sumG = 0;
     for (int i = 0; i < theHits.size(); i++) {
+        if (theHits[i].bounce >= minBounce && theHits[i].bounce <= maxBounce) sumG += theHits[i].GFactor;
         if (theHits[i].isHit(thetaI, bounceCount, side)) {
             GFactor = theHits[i].GFactor;
-            return GFactor; 
         }
+    }
+    if (GFactor > 0) {
+        CHECK(sumG > 0);
+        NGFactor = GFactor / sumG;
     }
     return GFactor; 
 }
@@ -280,9 +288,10 @@ class VGrooveReflection : public MicrofacetReflection {
     float microfacetPdf(const Vector3f& wo, const Vector3f& wh) const;
     float computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side,
                     float& pdf, Spectrum& F) const;
-    Spectrum eval(const Vector3f &wo, const Vector3f &wi, float &pdf) const;
+    Spectrum eval(const EvalFrame& evalFrame, const Vector3f &wo, const Vector3f &wi, float &pdf) const;
 
-    float computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side, Vector3f& wm) const;
+    float computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, 
+                         char side, Vector3f& wm, float& NGFactor) const;
 
     
 

@@ -44,10 +44,6 @@ class Frame:
 
 struct Frame {
 
-    void createRotationZ(const Vector3f& wo, const Vector3f& wi){
-        Vector3f wh = Normalize((wo + wi) *.5);
-        createRotationZ(wh);
-    }
     void createRotationZ(const Vector3f& wh) {
         float t = atan2(wh.y, wh.x);
         /*
@@ -75,21 +71,32 @@ struct Frame {
     }
     Vector3f localToWorld(const Vector3f& wl) const {
         //this is a bit of hack to take advantage of rotation being symmetric
+
         Normal3f N(wl.x, wl.y, wl.z);
+        if (flipped) {
+            N.x = -N.x;
+            //N.y = -N.y;
+        }
         return Vector3f(w2l(N));
     }
     Transform w2l;
     float frameTheta;
+    bool flipped;
 };
     
 struct EvalFrame : public Frame {
+    EvalFrame() {flipped = false; };
+    
     EvalFrame(const Vector3f& owo, const Vector3f& owi, bool autoFlip = true) : owo(owo), owi(owi) {
         wo = Normalize(owo);
         wi = Normalize(owi);
+
+        owh = Normalize((wo+wi));
         
-        createRotationZ(wo, wi);
+        createRotationZ(owh);
         wo = worldToLocal(wo);
         wi = worldToLocal(wi);
+        wh = worldToLocal(owh); 
 
         CHECK(rel_eq(wo.y, -wi.y));
 
@@ -101,13 +108,6 @@ struct EvalFrame : public Frame {
         theta_i = computeThetaForPhi0(wip);
         flipped = false;
 
-        /*
-        phi_o = atan2(wo.y, wo.x);
-        phi_i = atan2(wi.y, wi.x);
-        theta_or = computeTheta(wo, phi_o)
-        theta_ir = computeTheta(wi, phi_i)
-        */
-
         //y value and x value needs to be flipped 
         if (theta_o < 0 && autoFlip) {
             theta_o *= -1;
@@ -116,22 +116,19 @@ struct EvalFrame : public Frame {
             wi.x *= -1;
             wop.x *= -1;
             wip.x *= -1;
-            wo.y *= -1;
-            wi.y *= -1;
+            //wo.y *= -1;
+            //wi.y *= -1;
             flipped = true;
         }
     }
-
-    Vector3f wo, wi, wop, wip, owo, owi;
+    Vector3f wo, wi, wh, wop, wip, owo, owi, owh;
     float theta_o, theta_i;
-    bool flipped;
-    //float theta_or, phi_o, theta_ir, phi_i;
-
 };
-///////////////////////////////////SampleFrame//////////////////////////
-struct SampleFrame:public Frame {
 
-    SampleFrame(const Vector3f&  owo, const Vector3f& owh, bool autoFlip = true) {
+struct SampleFrame:public EvalFrame {
+    SampleFrame(const Vector3f&  oWo, const Vector3f& oWh, bool autoFlip = true) {
+        owo = oWo;
+        owh = oWh;
         wo = Normalize(owo);
         createRotationZ(owh);
 
@@ -152,16 +149,17 @@ struct SampleFrame:public Frame {
         if (theta_o < 0 && autoFlip) {
             theta_o *= -1;
             wo.x *= -1;
-            wo.y *= -1;
+            //wo.y *= -1;
             wh.x *= -1;
             wop.x *= -1;
             flipped = true;
         }
     }
 
-    Vector3f constructWi(float theta_i, Vector3f& localWi) {
+    Vector3f constructWi(float t_i) {
+        theta_i = t_i;
         Vector3f wip = Vector3f(sin(theta_i), 0, cos(theta_i)); 
-        Vector3f wi(0, 0, 0);
+        wi = Vector3f(0, 0, 0);
         wi.y = -wo.y;
         float scale = sqrt(1.0 - wi.y * wi.y);
 
@@ -170,19 +168,11 @@ struct SampleFrame:public Frame {
         float lenW = Dot(wi, wi);
         CHECK(rel_eq(lenW, 1.0));
 
-        localWi = wi;
         //important:
         // the localWi should be computed according to local wo, wh
         //only flipped for final output
-        if (flipped) {
-            wi.x *= -1;
-            wi.y *= -1;
-        }
-        return localToWorld(wi);
+        return owi =  localToWorld(wi);
     }
-    Vector3f wo, wh, wop;
-    float theta_o;
-    bool flipped;
 };
 
 struct Jacobian: public Frame{
@@ -289,12 +279,13 @@ VGrooveReflection::VGrooveReflection(const Spectrum &R,
 
 
 float 
-VGrooveReflection::computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side, Vector3f& wm) const {
+VGrooveReflection::computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, 
+                   char side, Vector3f& wm, float& NGFactor) const {
 
     //debug single bounce
 
     float thetaM = 0;
-    float GFactor = vgroove.inverseEval(evalFrame.theta_o, evalFrame.theta_i, bounce, side, thetaM);
+    float GFactor = vgroove.inverseEval(evalFrame.theta_o, evalFrame.theta_i, bounce, side, thetaM, NGFactor, maxBounce, minBounce);
     
     if (GFactor > 0) {
         GFactor = std::min(1.0f, GFactor);
@@ -303,7 +294,10 @@ VGrooveReflection::computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, 
             //no relation between frameTheta and thetaM (frameTheta is related to phi_h not theta_h
             Vector3f wh = Normalize((evalFrame.wo + evalFrame.wi)*.5);
             float mh = Dot(wm, wh);
-            CHECK(rel_eq(mh, 1));
+            if (!rel_eq(mh, 1.f)){
+                std::cout<<"wm: "<< wm << " wh: "<<wh<<"\n";
+                fflush(stdout);
+            }
         }
     }
     return GFactor;
@@ -314,14 +308,19 @@ float
 VGrooveReflection::computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side, 
                     float& pdf, Spectrum &F) const {
     Vector3f wm;
-    float GFactor = computeGFactor(evalFrame, vgroove, bounce, side, wm);
+    float NGFactor = 0;
+    float GFactor = computeGFactor(evalFrame, vgroove, bounce, side, wm, NGFactor);
+
+    pdf = 0;
+    F = Spectrum(1.f);
     float brdf(0);
     if (GFactor > 0) {
         Vector3f owm = evalFrame.localToWorld(wm);
         float value = microfacetReflectionWithoutG(evalFrame.owo, evalFrame.owi, owm);
         float mpdf = microfacetPdf(evalFrame.owo, owm);
+        //float value = microfacetReflectionWithoutG(evalFrame.wo, evalFrame.wi, wm);
+        //float mpdf = microfacetPdf(evalFrame.wo, wm);
         Jacobian jacobian(evalFrame.wo, evalFrame.wi, wm, fresnel);
-        //float J = jacobian.computeJacobian(bounce, F) * Dot(wo, wm) * 4;
         float J = jacobian.computeJacobian(bounce, F) * Dot(evalFrame.wo, wm) * 4;
         if (bounce == 1) {
             if (!rel_eq(J, 1, 1e-3)) {
@@ -330,19 +329,19 @@ VGrooveReflection::computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroov
             }
         }
         brdf = value * J * GFactor;
-        pdf = mpdf * J * GFactor;     
+        //CHECK(NGFactor >= GFactor);
+        pdf = mpdf * J * NGFactor;     
     }
     //brdf = MicrofacetReflection::f(evalFrame.wo, evalFrame.wi);
     return brdf;
 }
 
 Spectrum 
-VGrooveReflection::eval(const Vector3f &wo, const Vector3f &wi, float& pdf) const {
+VGrooveReflection::eval(const EvalFrame& evalFrame, const Vector3f &wo, const Vector3f &wi, float& pdf) const {
 
     //pdf = .5/Pi;
     //return MicrofacetReflection::f(wo, wi);
     if (!SameHemisphere(wo, wi)) return Spectrum(0.f);
-    EvalFrame evalFrame(wo, wi);
 
     VGroove vgroove;
     Spectrum brdf(0);
@@ -366,21 +365,36 @@ int weightedRandomChoice(std::vector<Hit> hits, int maxBounce, int minBounce, fl
 {
     //float u = .5;
     prob = 0;
-
+     
     int hitCount = hits.size();
-    if (hitCount == 1) {
+    CHECK(hitCount <=2);
+    int index[2];
+    float weights[2];
+    int validHits = 0;
+    float sumW = 0;
+    for (int i = 0; i< hitCount; i++) {
+        if (hits[i].bounce >= minBounce && hits[i].bounce <= maxBounce) {
+            sumW += hits[i].GFactor;
+            weights[validHits] = hits[i].GFactor;
+            index[validHits] = i;
+            validHits++;
+        }
+    }
+    
+    if (validHits == 1) {
         prob = 1;
-        return 0;
+        return index[0];
     }
 
-    if (hitCount == 2) {
-        float u1 = ((float) rand()/(RAND_MAX));
-        if (u1 < hits[0].GFactor) {
-            prob = hits[0].GFactor;
-            return 0;
+    if (validHits == 2) { 
+        weights[0] /= sumW;
+        float u1 = (((float) rand())/(RAND_MAX));
+        if (u1 < weights[0]) {
+            prob = weights[0];
+            return index[0];
         } else {
-            prob = hits[1].GFactor;
-            return 1;
+            prob = 1.0 - weights[0];
+            return index[1];
         }
     } 
 
@@ -408,36 +422,33 @@ VGrooveReflection::Sample_f(const Vector3f &owo, Vector3f *wi, const Point2f &u,
     SampleFrame sampleFrame(wo, wh);
     float grooveTheta = asin(wh.z);
     VGroove vgroove;
-    if (sampleFrame.wh.x >0) {
+    if (sampleFrame.wh.x * sampleFrame.wo.x >0) {
         vgroove.leftEvalOnly(grooveTheta, sampleFrame.theta_o);
     } else {
         vgroove.rightEvalOnly(grooveTheta, sampleFrame.theta_o);
     }
-    float prob;
-
-    //need to make sure the function below is doing the right thing
-    //should i only choose from one side of the groove? since wh is only
-    //on one side I think so.
     if (vgroove.theHits.size() > 0) {
-        int choice = weightedRandomChoice(vgroove.theHits, 3, 1, prob);
+        float prob = 0;
+        int choice = weightedRandomChoice(vgroove.theHits, maxBounce, minBounce, prob);
         if (choice >= 0) {
             Hit hit = vgroove.theHits[choice];
-            if (hit.bounce >= minBounce && hit.bounce <= maxBounce) {
-            Vector3f sampleFrameWi;
-            *wi = sampleFrame.constructWi(hit.thetaR, sampleFrameWi); 
+            *wi = sampleFrame.constructWi(hit.thetaR); 
+            Float tmppdf = 0;
+            Spectrum brdf = eval(sampleFrame, wo, *wi, tmppdf);
+            if (pdf) *pdf = tmppdf;
+            return brdf;
+            /*
             float brdf = microfacetReflectionWithoutG(wo, *wi, wh);
             float tpdf = microfacetPdf(wo, wh);
-            //Jacobian jacobian(wo, *wi, wh, fresnel);
-            Jacobian jacobian(sampleFrame.wo, sampleFrameWi, sampleFrame.wh, fresnel);
-            Spectrum F;
-            //float J = jacobian.computeJacobian(hit.bounce, F) * Dot(wo, wh) * 4;
+            Jacobian jacobian(sampleFrame.wo, sampleFrame.wi, sampleFrame.wh, fresnel);
+            Spectrum F(1.f);
             float J = jacobian.computeJacobian(hit.bounce, F) * Dot(sampleFrame.wo, sampleFrame.wh) * 4;
             brdf *= hit.GFactor * J;
             tpdf *= prob * J;
 
             if (pdf) *pdf = tpdf;
             return R*F*brdf;
-            }
+            */
         }
     }
     if (pdf) *pdf = 0;
@@ -452,20 +463,22 @@ VGrooveReflection::UniSample_f(const Vector3f &wo, Vector3f *wi, const Point2f &
     if (pdf) *pdf = .5/Pi;
     *wi = UniformSampleHemisphere(u);
     float pdfstub;
-    return eval(wo, *wi, pdfstub); 
+    EvalFrame evalFrame(wo, *wi);
+    return eval(evalFrame, wo, *wi, pdfstub); 
 }
 
 
 Spectrum 
 VGrooveReflection:: f(const Vector3f &wo, const Vector3f &wi) const {
     float pdf = 0;
-    return eval(wo, wi, pdf);
+    EvalFrame evalFrame(wo, wi);
+    return eval(evalFrame, wo, wi, pdf);
 }
 
 Float 
 VGrooveReflection::Pdf(const Vector3f &wo, const Vector3f &wi) const {
 
-    return .5/Pi;
+    //return .5/Pi;
 
     //always return uniform pdf for MIS for now
     if (uniSample) {
@@ -473,7 +486,8 @@ VGrooveReflection::Pdf(const Vector3f &wo, const Vector3f &wi) const {
     } else {
         //real pdf computation
         float pdf = 0;
-        Spectrum brdf = eval(wo, wi, pdf);
+        EvalFrame evalFrame(wo, wi);
+        Spectrum brdf = eval(evalFrame, wo, wi, pdf);
         return pdf;
     }
 }
