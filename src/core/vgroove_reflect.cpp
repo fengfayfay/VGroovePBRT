@@ -42,6 +42,22 @@ class Frame:
         return g
 */
 
+Transform MyRotateY(Float theta) {
+    Float sinTheta = std::sin(theta);
+    Float cosTheta = std::cos(theta);
+    Matrix4x4 m(cosTheta, 0, sinTheta, 0, 0, 1, 0, 0, -sinTheta, 0, cosTheta, 0,
+                0, 0, 0, 1);
+    return Transform(m, Transpose(m));
+}
+
+Transform MyRotateZ(Float theta) {
+    Float sinTheta = std::sin(theta);
+    Float cosTheta = std::cos(theta);
+    Matrix4x4 m(cosTheta, -sinTheta, 0, 0, sinTheta, cosTheta, 0, 0, 0, 0, 1, 0,
+                0, 0, 0, 1);
+    return Transform(m, Transpose(m));
+}
+
 struct Frame {
 
     void createRotationZ(const Vector3f& wh) {
@@ -52,7 +68,8 @@ struct Frame {
         }
         */
         frameTheta = -t;
-        w2l = RotateZ(frameTheta * 180.0/Pi);
+        w2l = MyRotateZ(frameTheta);
+        l2w = MyRotateZ(-frameTheta);
     }
 
     void createRotationY(const Vector3f& wh) {
@@ -63,7 +80,8 @@ struct Frame {
         }
         */
         frameTheta = -t;
-        w2l = RotateY(frameTheta * 180.0/Pi);
+        w2l = MyRotateY(frameTheta);
+        l2w = MyRotateY(-frameTheta);
     }
 
     Vector3f worldToLocal(const Vector3f& wW) const{
@@ -72,14 +90,14 @@ struct Frame {
     Vector3f localToWorld(const Vector3f& wl) const {
         //this is a bit of hack to take advantage of rotation being symmetric
 
-        Normal3f N(wl.x, wl.y, wl.z);
+        Vector3f t(wl);
         if (flipped) {
-            N.x = -N.x;
+            t.x = -t.x;
             //N.y = -N.y;
         }
-        return Vector3f(w2l(N));
+        return Vector3f(l2w(t));
     }
-    Transform w2l;
+    Transform w2l, l2w;
     float frameTheta;
     bool flipped;
 };
@@ -158,7 +176,7 @@ struct SampleFrame:public EvalFrame {
 
     Vector3f constructWi(float t_i) {
         theta_i = t_i;
-        Vector3f wip = Vector3f(sin(theta_i), 0, cos(theta_i)); 
+        wip = Vector3f(sin(theta_i), 0, cos(theta_i)); 
         wi = Vector3f(0, 0, 0);
         wi.y = -wo.y;
         float scale = sqrt(1.0 - wi.y * wi.y);
@@ -245,7 +263,7 @@ struct Jacobian: public Frame{
             fflush(stdout);
         }
         float denom = fabs(dxy.x * dxy.y);
-        if (denom < 1e-7) return 1;
+        if (denom < 1e-6) return 0;
         float nom = fabs(wi.z);
         float jacobian = nom/denom;
         return jacobian;
@@ -326,11 +344,17 @@ VGrooveReflection::computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroov
             if (!rel_eq(J, 1, 1e-3)) {
                 std::cout << "J is different from 1: "<< J << "\n";
                 fflush(stdout);
+                float J = jacobian.computeJacobian(bounce, F) * Dot(evalFrame.wo, wm) * 4;
             }
         }
         brdf = value * J * GFactor;
+        if (NGFactor + 1e-6 < GFactor) {
+            std::cout << "NG: "<< NGFactor << " G:"<< GFactor<< "\n";
+            fflush(stdout);
+        }
         //CHECK(NGFactor >= GFactor);
         pdf = mpdf * J * NGFactor;     
+        //pdf = mpdf * J;     
     }
     //brdf = MicrofacetReflection::f(evalFrame.wo, evalFrame.wi);
     return brdf;
@@ -341,11 +365,12 @@ VGrooveReflection::eval(const EvalFrame& evalFrame, const Vector3f &wo, const Ve
 
     //pdf = .5/Pi;
     //return MicrofacetReflection::f(wo, wi);
-    if (!SameHemisphere(wo, wi)) return Spectrum(0.f);
-
-    VGroove vgroove;
     Spectrum brdf(0);
     pdf = 0;
+    if (!SameHemisphere(wo, wi)) return brdf;
+    if (evalFrame.theta_o < 1e-6) return brdf;
+
+    VGroove vgroove;
     for (int n = minBounce; n<=maxBounce; n++) {
         float tpdf; 
         Spectrum F;
@@ -420,6 +445,11 @@ VGrooveReflection::Sample_f(const Vector3f &owo, Vector3f *wi, const Point2f &u,
     //return eval(wo, *wi, *pdf);
     
     SampleFrame sampleFrame(wo, wh);
+    if (sampleFrame.theta_o < 1e-6) {
+        if (pdf) *pdf = 0;
+        return Spectrum(0);
+    }
+
     float grooveTheta = asin(wh.z);
     VGroove vgroove;
     if (sampleFrame.wh.x * sampleFrame.wo.x >0) {
@@ -432,7 +462,7 @@ VGrooveReflection::Sample_f(const Vector3f &owo, Vector3f *wi, const Point2f &u,
         int choice = weightedRandomChoice(vgroove.theHits, maxBounce, minBounce, prob);
         if (choice >= 0) {
             Hit hit = vgroove.theHits[choice];
-            *wi = sampleFrame.constructWi(hit.thetaR); 
+            *wi = sampleFrame.constructWi(hit.thetaR);
             Float tmppdf = 0;
             Spectrum brdf = eval(sampleFrame, wo, *wi, tmppdf);
             if (pdf) *pdf = tmppdf;
