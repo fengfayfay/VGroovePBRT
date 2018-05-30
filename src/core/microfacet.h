@@ -77,7 +77,9 @@ class MicrofacetDistribution {
         if (denom < 1e-6) return 1;
         Float nom = 2 * wo.z * wh.z;
         if (nom < 1e-6) return 0;
-        return std::min(nom/denom, 1.0F);
+
+        Float g = nom/denom;
+        return std::min(g, (Float) 1.0);
     }
 
     virtual Vector3f Sample_wh(const Vector3f &wo, const Point2f &u) const = 0;

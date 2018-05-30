@@ -16,12 +16,12 @@ inline bool rel_eq(const Vector3f&v1, const Vector3f& v2, Float thresh = 1e-3) {
 }
 
 //phi is always 0
-float computeThetaForPhi0(const Vector3f& w) {
-    float cosTheta = w.z;
-    float cosPhi = 1;
-    float sinPhi = 0; 
-    float sinTheta = w.x/cosPhi;
-    float theta = atan2(sinTheta, cosTheta);
+Float computeThetaForPhi0(const Vector3f& w) {
+    Float cosTheta = w.z;
+    Float cosPhi = 1;
+    Float sinPhi = 0; 
+    Float sinTheta = w.x/cosPhi;
+    Float theta = atan2(sinTheta, cosTheta);
     return theta;
 }
 /*
@@ -61,7 +61,7 @@ Transform MyRotateZ(Float theta) {
 struct Frame {
 
     void createRotationZ(const Vector3f& wh) {
-        float t = atan2(wh.y, wh.x);
+        Float t = atan2(wh.y, wh.x);
         /*
         if (t < 0) {
             t += Pi * 2.0;
@@ -73,7 +73,7 @@ struct Frame {
     }
 
     void createRotationY(const Vector3f& wh) {
-        float t = atan2(wh.x, wh.z);
+        Float t = atan2(wh.x, wh.z);
         /*
         if (t < 0) {
             t += Pi * 2.0;
@@ -98,7 +98,7 @@ struct Frame {
         return Vector3f(l2w(t));
     }
     Transform w2l, l2w;
-    float frameTheta;
+    Float frameTheta;
     bool flipped;
 };
     
@@ -140,7 +140,7 @@ struct EvalFrame : public Frame {
         }
     }
     Vector3f wo, wi, wh, wop, wip, owo, owi, owh;
-    float theta_o, theta_i;
+    Float theta_o, theta_i;
 };
 
 struct SampleFrame:public EvalFrame {
@@ -174,16 +174,16 @@ struct SampleFrame:public EvalFrame {
         }
     }
 
-    Vector3f constructWi(float t_i) {
+    Vector3f constructWi(Float t_i) {
         theta_i = t_i;
         wip = Vector3f(sin(theta_i), 0, cos(theta_i)); 
         wi = Vector3f(0, 0, 0);
         wi.y = -wo.y;
-        float scale = sqrt(1.0 - wi.y * wi.y);
+        Float scale = sqrt(1.0 - wi.y * wi.y);
 
         wi.x = wip.x * scale;
         wi.z = wip.z * scale;
-        float lenW = Dot(wi, wi);
+        Float lenW = Dot(wi, wi);
         CHECK(rel_eq(lenW, 1.0));
 
         //important:
@@ -231,16 +231,16 @@ struct Jacobian: public Frame{
         } else {
             Vector3f wp;
             Vector2f pDxDy = computeDxaDya(bounce - 1, wp, F);
-            float pDxdxa = pDxDy.x;
-            float pDydya = pDxDy.y;
+            Float pDxdxa = pDxDy.x;
+            Float pDydya = pDxDy.y;
 
             Vector3f h = getH(bounce);
-            float kp = Dot(wp, h);
+            Float kp = Dot(wp, h);
             w = Reflect(-wp, h);
             if (fresnel) F *= fresnel->Evaluate(Dot(w, h));
-            float dxdxa = 0, dydya = 0;
+            Float dxdxa = 0, dydya = 0;
             if (bounce % 2 == 0) {
-                float pDzdxa = -wp.x/wp.z * pDxdxa;
+                Float pDzdxa = -wp.x/wp.z * pDxdxa;
                 dxdxa = pDxdxa - 2.0 * kp * dxpdxa;
                 dxdxa -= 2.0 * HP.x * (pDxdxa * HP.x + wp.x * dxpdxa + pDzdxa * HP.z + wp.z * dzpdxa);
                 dydya = pDydya + 2.0 * kp;
@@ -252,7 +252,7 @@ struct Jacobian: public Frame{
         }
     }
 
-    float computeJacobian(int bounce, Spectrum& F) {
+    Float computeJacobian(int bounce, Spectrum& F) {
         Vector3f wr;
         Vector2f dxy = computeDxaDya(bounce, wr, F);
 
@@ -262,23 +262,23 @@ struct Jacobian: public Frame{
             std::cout << "expected outgoing direction: " << wi <<"\n";
             fflush(stdout);
         }
-        float denom = fabs(dxy.x * dxy.y);
+        Float denom = fabs(dxy.x * dxy.y);
         if (denom < 1e-6) return 0;
-        float nom = fabs(wi.z);
-        float jacobian = nom/denom;
+        Float nom = fabs(wi.z);
+        Float jacobian = nom/denom;
         return jacobian;
     }
 
     const Fresnel* fresnel;
     Vector3f N, Ng, H, HP, wo, wi, owo, owi, owh;
-    float dxpdxa, dypdya, dzpdxa;
+    Float dxpdxa, dypdya, dzpdxa;
 
 };
 
 //thetaM is in (0, .5pi) so cosThetaM > 0
 //left ZipinNormal should be the same xsign as wop, right ZipinNormal has -xsign as wop
 Vector3f 
-computeZipinNormal(float thetaM, char side, const Vector3f& wop) {
+computeZipinNormal(Float thetaM, char side, const Vector3f& wop) {
     Vector3f n(cos(thetaM), 0, sin(thetaM));
     n.x *= wop.x > 0 ? 1: -1;
     if (side == 'r' ){
@@ -296,22 +296,22 @@ VGrooveReflection::VGrooveReflection(const Spectrum &R,
 }
 
 
-float 
+Float 
 VGrooveReflection::computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, 
-                   char side, Vector3f& wm, float& NGFactor) const {
+                   char side, Vector3f& wm) const {
 
     //debug single bounce
 
-    float thetaM = 0;
-    float GFactor = vgroove.inverseEval(evalFrame.theta_o, evalFrame.theta_i, bounce, side, thetaM, NGFactor, maxBounce, minBounce);
+    Float thetaM = 0;
+    Float GFactor = vgroove.inverseEval(evalFrame.theta_o, evalFrame.theta_i, bounce, side, thetaM);
     
     if (GFactor > 0) {
-        GFactor = std::min(1.0f, GFactor);
+        GFactor = std::min((Float)1.0, GFactor);
         wm = computeZipinNormal(thetaM, side, evalFrame.wop);
         if (bounce == 1) {
             //no relation between frameTheta and thetaM (frameTheta is related to phi_h not theta_h
             Vector3f wh = Normalize((evalFrame.wo + evalFrame.wi)*.5);
-            float mh = Dot(wm, wh);
+            Float mh = Dot(wm, wh);
             if (!rel_eq(mh, 1.f)){
                 std::cout<<"wm: "<< wm << " wh: "<<wh<<"\n";
                 fflush(stdout);
@@ -322,46 +322,52 @@ VGrooveReflection::computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, 
 }
 
 
-float 
+Float 
 VGrooveReflection::computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side, 
-                    float& pdf, Spectrum &F) const {
+                   Float& pdf, Spectrum &F, Float& weight) const {
+    
     Vector3f wm;
-    float NGFactor = 0;
-    float GFactor = computeGFactor(evalFrame, vgroove, bounce, side, wm, NGFactor);
+    Float GFactor = computeGFactor(evalFrame, vgroove, bounce, side, wm);
+    Float NGFactor = vgroove.sumG > 1e-6? GFactor/vgroove.sumG : 0;
 
     pdf = 0;
+    weight = 0;
     F = Spectrum(1.f);
-    float brdf(0);
+    Float brdf(0);
     if (GFactor > 0) {
         Vector3f owm = evalFrame.localToWorld(wm);
-        float value = microfacetReflectionWithoutG(evalFrame.owo, evalFrame.owi, owm);
-        float mpdf = microfacetPdf(evalFrame.owo, owm);
-        //float value = microfacetReflectionWithoutG(evalFrame.wo, evalFrame.wi, wm);
-        //float mpdf = microfacetPdf(evalFrame.wo, wm);
+        if (Dot(evalFrame.wo, wm) < 1e-6) return brdf;
+        Float value = microfacetReflectionWithoutG(evalFrame.owo, evalFrame.owi, owm);
+        Float mpdf = microfacetPdf(evalFrame.owo, owm);
+        //Float value = microfacetReflectionWithoutG(evalFrame.wo, evalFrame.wi, wm);
+        //Float mpdf = microfacetPdf(evalFrame.wo, wm);
         Jacobian jacobian(evalFrame.wo, evalFrame.wi, wm, fresnel);
-        float J = jacobian.computeJacobian(bounce, F) * Dot(evalFrame.wo, wm) * 4;
-        if (bounce == 1) {
-            if (!rel_eq(J, 1, 1e-3)) {
-                std::cout << "J is different from 1: "<< J << "\n";
-                fflush(stdout);
-                float J = jacobian.computeJacobian(bounce, F) * Dot(evalFrame.wo, wm) * 4;
+        Float Jac = jacobian.computeJacobian(bounce, F);
+        if (Jac > 0) {
+            Float J = Jac * Dot(evalFrame.wo, wm) * 4; 
+            if (bounce == 1) {
+                if (!rel_eq(J, 1, 1e-3)) {
+                    std::cout << "J is different from 1: "<< J << "\n";
+                    fflush(stdout);
+                    //Float J = jacobian.computeJacobian(bounce, F) * Dot(evalFrame.wo, wm) * 4;
+                }
             }
+            brdf = value * J * GFactor;
+            if (NGFactor + 1e-4 < GFactor) {
+                std::cout << "NG: "<< NGFactor << " G:"<< GFactor<< "\n";
+                fflush(stdout);
+            }
+            //pdf = distribution->Pdf(evalFrame.owo, owm) * Jac * NGFactor;
+            pdf = mpdf * J * NGFactor;
+            weight = 1;
+            return brdf;
         }
-        brdf = value * J * GFactor;
-        if (NGFactor + 1e-6 < GFactor) {
-            std::cout << "NG: "<< NGFactor << " G:"<< GFactor<< "\n";
-            fflush(stdout);
-        }
-        //CHECK(NGFactor >= GFactor);
-        pdf = mpdf * J * NGFactor;     
-        //pdf = mpdf * J;     
     }
-    //brdf = MicrofacetReflection::f(evalFrame.wo, evalFrame.wi);
     return brdf;
 }
 
 Spectrum 
-VGrooveReflection::eval(const EvalFrame& evalFrame, const Vector3f &wo, const Vector3f &wi, float& pdf) const {
+VGrooveReflection::eval(const EvalFrame& evalFrame, const Vector3f &wo, const Vector3f &wi, Float& pdf) const {
 
     //pdf = .5/Pi;
     //return MicrofacetReflection::f(wo, wi);
@@ -370,59 +376,49 @@ VGrooveReflection::eval(const EvalFrame& evalFrame, const Vector3f &wo, const Ve
     if (!SameHemisphere(wo, wi)) return brdf;
     if (evalFrame.theta_o < 1e-6) return brdf;
 
-    VGroove vgroove;
+    VGroove vgroove(maxBounce, minBounce);
+
+    Float weightSum = 0; 
+    
     for (int n = minBounce; n<=maxBounce; n++) {
-        float tpdf; 
+        Float tpdf = 0,  weight = 0; 
         Spectrum F;
-        float tbrdf = computeBounceBrdf(evalFrame, vgroove, n, 'r', tpdf, F);
-        brdf += tbrdf * F;
+        Float tbrdf = computeBounceBrdf(evalFrame, vgroove, n, 'r', tpdf, F, weight);
+        brdf += tbrdf * F * weight;
         pdf += tpdf;
+        weightSum += weight;
         if (n == 1 && tbrdf > 0) continue;
-        tbrdf = computeBounceBrdf(evalFrame, vgroove, n, 'l', tpdf, F);
-        brdf += tbrdf * F;
+        tbrdf = computeBounceBrdf(evalFrame, vgroove, n, 'l', tpdf, F, weight);
+        brdf += tbrdf * F * weight;
         pdf += tpdf;
+        weightSum += weight;
     }
     return Spectrum(brdf);
     //return R*brdf;
 }
 
-int weightedRandomChoice(std::vector<Hit> hits, int maxBounce, int minBounce, float& prob)
+int weightedRandomChoice(std::vector<Hit> hits, Float sumG, Float& prob)
 {
-    //float u = .5;
+    //Float u = .5;
     prob = 0;
      
-    int hitCount = hits.size();
-    CHECK(hitCount <=2);
-    int index[2];
-    float weights[2];
-    int validHits = 0;
-    float sumW = 0;
-    for (int i = 0; i< hitCount; i++) {
-        if (hits[i].bounce >= minBounce && hits[i].bounce <= maxBounce) {
-            sumW += hits[i].GFactor;
-            weights[validHits] = hits[i].GFactor;
-            index[validHits] = i;
-            validHits++;
-        }
-    }
-    
+    int validHits = hits.size();
     if (validHits == 1) {
         prob = 1;
-        return index[0];
+        return 0;
     }
 
     if (validHits == 2) { 
-        weights[0] /= sumW;
-        float u1 = (((float) rand())/(RAND_MAX));
-        if (u1 < weights[0]) {
-            prob = weights[0];
-            return index[0];
+        Float weight = hits[0].GFactor/sumG;
+        Float u1 = (((Float) rand())/(RAND_MAX));
+        if (u1 < weight) {
+            prob = weight;
+            return 0;
         } else {
-            prob = 1.0 - weights[0];
-            return index[1];
+            prob = 1.0 - weight;
+            return 1;
         }
     } 
-
     return -1;
 }
 
@@ -450,16 +446,16 @@ VGrooveReflection::Sample_f(const Vector3f &owo, Vector3f *wi, const Point2f &u,
         return Spectrum(0);
     }
 
-    float grooveTheta = asin(wh.z);
-    VGroove vgroove;
+    Float grooveTheta = asin(wh.z);
+    VGroove vgroove(maxBounce, minBounce);
     if (sampleFrame.wh.x * sampleFrame.wo.x >0) {
         vgroove.leftEvalOnly(grooveTheta, sampleFrame.theta_o);
     } else {
         vgroove.rightEvalOnly(grooveTheta, sampleFrame.theta_o);
     }
     if (vgroove.theHits.size() > 0) {
-        float prob = 0;
-        int choice = weightedRandomChoice(vgroove.theHits, maxBounce, minBounce, prob);
+        Float prob = 0;
+        int choice = weightedRandomChoice(vgroove.theHits, vgroove.sumG, prob);
         if (choice >= 0) {
             Hit hit = vgroove.theHits[choice];
             *wi = sampleFrame.constructWi(hit.thetaR);
@@ -468,11 +464,11 @@ VGrooveReflection::Sample_f(const Vector3f &owo, Vector3f *wi, const Point2f &u,
             if (pdf) *pdf = tmppdf;
             return brdf;
             /*
-            float brdf = microfacetReflectionWithoutG(wo, *wi, wh);
-            float tpdf = microfacetPdf(wo, wh);
+            Float brdf = microfacetReflectionWithoutG(wo, *wi, wh);
+            Float tpdf = microfacetPdf(wo, wh);
             Jacobian jacobian(sampleFrame.wo, sampleFrame.wi, sampleFrame.wh, fresnel);
             Spectrum F(1.f);
-            float J = jacobian.computeJacobian(hit.bounce, F) * Dot(sampleFrame.wo, sampleFrame.wh) * 4;
+            Float J = jacobian.computeJacobian(hit.bounce, F) * Dot(sampleFrame.wo, sampleFrame.wh) * 4;
             brdf *= hit.GFactor * J;
             tpdf *= prob * J;
 
@@ -492,7 +488,7 @@ VGrooveReflection::UniSample_f(const Vector3f &wo, Vector3f *wi, const Point2f &
 
     if (pdf) *pdf = .5/Pi;
     *wi = UniformSampleHemisphere(u);
-    float pdfstub;
+    Float pdfstub;
     EvalFrame evalFrame(wo, *wi);
     return eval(evalFrame, wo, *wi, pdfstub); 
 }
@@ -500,7 +496,7 @@ VGrooveReflection::UniSample_f(const Vector3f &wo, Vector3f *wi, const Point2f &
 
 Spectrum 
 VGrooveReflection:: f(const Vector3f &wo, const Vector3f &wi) const {
-    float pdf = 0;
+    Float pdf = 0;
     EvalFrame evalFrame(wo, wi);
     return eval(evalFrame, wo, wi, pdf);
 }
@@ -515,14 +511,14 @@ VGrooveReflection::Pdf(const Vector3f &wo, const Vector3f &wi) const {
         return .5/Pi;
     } else {
         //real pdf computation
-        float pdf = 0;
+        Float pdf = 0;
         EvalFrame evalFrame(wo, wi);
         Spectrum brdf = eval(evalFrame, wo, wi, pdf);
         return pdf;
     }
 }
 
-float
+Float
 VGrooveReflection::microfacetReflectionWithoutG(const Vector3f& wo, const Vector3f& wi, 
                    const Vector3f& wh) const {
 
@@ -534,27 +530,62 @@ VGrooveReflection::microfacetReflectionWithoutG(const Vector3f& wo, const Vector
     return distribution->D(wh) / (4 * cosThetaI * cosThetaO);
 }
 
-float
+Float
 VGrooveReflection::microfacetPdf(const Vector3f& wo, const Vector3f& wh) const {
-    float factor = Dot(wo, wh);
-    if (factor < 1e-5) return 0;
     return distribution->Pdf(wo, wh) / (4 * Dot(wo, wh));        
 }
 
+Float
+VGrooveReflection::computePdfIntegral(Float thetaI) const {
+    int phiCount = 100;
+    int muCount = 200;
+    Float sum = 0;
+
+    Vector3f wo(sin(thetaI), 0, cos(thetaI));
+    for (int i = 0; i < phiCount; i++) {
+        Float phi = i;
+        phi = Pi * 2.0 * phi /phiCount;
+        Float cosPhi = cos(phi);
+        Float sinPhi = sin(phi);
+
+        for (int j = 0; j < muCount; j++) {
+            Float mu = j + 0.5;
+            mu /= muCount;
+            Float sinTheta = sqrt(1 - mu * mu);
+            Vector3f wi(sinTheta * cosPhi, sinTheta * sinPhi, mu);
+            Float pdf = Pdf(wo, wi);
+            sum += pdf;
+        }
+    }
+    return sum*Pi*2/(muCount * phiCount);
+}
+
+bool
+VGrooveReflection::testPDF() const {
+    for (int i = 0; i < 90; i++){
+        Float thetaI = Radians(i - 0.5);
+        Float pdfIntegral = computePdfIntegral(thetaI);
+        if (pdfIntegral -1e-2 > 1.0 || 1.0 - pdfIntegral > 1e-3) {
+            std::cout << "pdfIntegral problem: " << pdfIntegral << " thetaI" << i << "\n";
+            return false;
+        }
+    }
+    return true;
+}
 /*
 void
-VGroove::saveOutHits(float theta, float phi) {
+VGroove::saveOutHits(Float theta, Float phi) {
 }
 
 void 
 VGroove::VGrooveTest() {
 
-    float phi_offset = 0.6;
-    float theta_offset = 0.3;
+    Float phi_offset = 0.6;
+    Float theta_offset = 0.3;
     for (int i = 0; i < 90; i++) {
-        float theta = radians(theta_offset + i);
+        Float theta = radians(theta_offset + i);
         for (int j = 0; j < 90; j++) {
-            float phi = radians(phi_offset + j);
+            Float phi = radians(phi_offset + j);
             leftHitOnly(theta, phi);
             saveOut(theta, phi, theHits);  
             rightHitOnly(theta, phi);
