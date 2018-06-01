@@ -125,9 +125,9 @@ Spectrum EstimateDirect(const Interaction &it, const Point2f &uScattering,
         if (it.IsSurfaceInteraction()) {
             // Evaluate BSDF for light sampling strategy
             const SurfaceInteraction &isect = (const SurfaceInteraction &)it;
-            f = isect.bsdf->f(isect.wo, wi, bsdfFlags) *
+            f = isect.bsdf->f(isect.wo, wi, scatteringPdf, bsdfFlags) *
                 AbsDot(wi, isect.shading.n);
-            scatteringPdf = isect.bsdf->Pdf(isect.wo, wi, bsdfFlags);
+            //scatteringPdf = isect.bsdf->Pdf(isect.wo, wi, bsdfFlags);
             VLOG(2) << "  surf f*dot :" << f << ", scatteringPdf: " << scatteringPdf;
         } else {
             // Evaluate phase function for light sampling strategy

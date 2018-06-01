@@ -174,6 +174,8 @@ class BSDF {
     }
     Spectrum f(const Vector3f &woW, const Vector3f &wiW,
                BxDFType flags = BSDF_ALL) const;
+    Spectrum f(const Vector3f &woW, const Vector3f &wiW, Float& pdf,
+               BxDFType flags = BSDF_ALL) const;
     Spectrum rho(int nSamples, const Point2f *samples1, const Point2f *samples2,
                  BxDFType flags = BSDF_ALL) const;
     Spectrum rho(const Vector3f &wo, int nSamples, const Point2f *samples,
@@ -213,6 +215,10 @@ class BxDF {
     virtual ~BxDF() {}
     BxDF(BxDFType type) : type(type) {}
     bool MatchesFlags(BxDFType t) const { return (type & t) == type; }
+    virtual Spectrum f(const Vector3f &wo, const Vector3f &wi, Float& pdf) const {
+        pdf = Pdf(wo, wi);
+        return f(wo, wi);
+    }
     virtual Spectrum f(const Vector3f &wo, const Vector3f &wi) const = 0;
     virtual Spectrum Sample_f(const Vector3f &wo, Vector3f *wi,
                               const Point2f &sample, Float *pdf,
@@ -431,7 +437,13 @@ class MicrofacetReflection : public BxDF {
     // MicrofacetReflection Public Methods
     MicrofacetReflection(const Spectrum &R,
                          MicrofacetDistribution *distribution, Fresnel *fresnel)
+
+//#define ISONLY
+#ifdef ISONLY
+        : BxDF(BxDFType(BSDF_REFLECTION | BSDF_SPECULAR)),
+#else
         : BxDF(BxDFType(BSDF_REFLECTION | BSDF_GLOSSY)),
+#endif
           R(R),
           distribution(distribution),
           fresnel(fresnel) {}

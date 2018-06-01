@@ -683,6 +683,28 @@ Spectrum BSDF::f(const Vector3f &woW, const Vector3f &wiW,
     return f;
 }
 
+Spectrum BSDF::f(const Vector3f &woW, const Vector3f &wiW, Float& pdf,
+                 BxDFType flags) const {
+    ProfilePhase pp(Prof::BSDFEvaluation);
+    Vector3f wi = WorldToLocal(wiW), wo = WorldToLocal(woW);
+    if (wo.z == 0) return 0.;
+    bool reflect = Dot(wiW, ng) * Dot(woW, ng) > 0;
+    Spectrum f(0.f);
+    Float tmppdf = 0;
+    pdf = 0;
+    int matchCount = 0;
+    for (int i = 0; i < nBxDFs; ++i)
+        if (bxdfs[i]->MatchesFlags(flags) &&
+            ((reflect && (bxdfs[i]->type & BSDF_REFLECTION)) ||
+             (!reflect && (bxdfs[i]->type & BSDF_TRANSMISSION)))) {
+            f += bxdfs[i]->f(wo, wi, tmppdf);
+            pdf += tmppdf;
+            matchCount++;
+        }
+    if (matchCount > 0) pdf /= matchCount;
+    return f;
+}
+
 Spectrum BSDF::rho(int nSamples, const Point2f *samples1,
                    const Point2f *samples2, BxDFType flags) const {
     Spectrum ret(0.f);

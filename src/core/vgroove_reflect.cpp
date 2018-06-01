@@ -280,7 +280,7 @@ struct Jacobian: public Frame{
 Vector3f 
 computeZipinNormal(Float thetaM, char side, const Vector3f& wop) {
     Vector3f n(cos(thetaM), 0, sin(thetaM));
-    n.x *= wop.x > 0 ? 1: -1;
+    //n.x *= wop.x >= 0 ? 1: -1;
     if (side == 'r' ){
         n.x *= -1;
     }
@@ -324,43 +324,38 @@ VGrooveReflection::computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, 
 
 Float 
 VGrooveReflection::computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side, 
-                   Float& pdf, Spectrum &F, Float& weight) const {
+                   Float& pdf, Spectrum &F) const {
     
     Vector3f wm;
     Float GFactor = computeGFactor(evalFrame, vgroove, bounce, side, wm);
-    Float NGFactor = vgroove.sumG > 1e-6? GFactor/vgroove.sumG : 0;
 
     pdf = 0;
-    weight = 0;
     F = Spectrum(1.f);
     Float brdf(0);
     if (GFactor > 0) {
+        Float wom = Dot(evalFrame.wo, wm);
+        if (wom > 1e-6) {
         Vector3f owm = evalFrame.localToWorld(wm);
-        if (Dot(evalFrame.wo, wm) < 1e-6) return brdf;
         Float value = microfacetReflectionWithoutG(evalFrame.owo, evalFrame.owi, owm);
         Float mpdf = microfacetPdf(evalFrame.owo, owm);
-        //Float value = microfacetReflectionWithoutG(evalFrame.wo, evalFrame.wi, wm);
-        //Float mpdf = microfacetPdf(evalFrame.wo, wm);
+
         Jacobian jacobian(evalFrame.wo, evalFrame.wi, wm, fresnel);
         Float Jac = jacobian.computeJacobian(bounce, F);
-        if (Jac > 0) {
-            Float J = Jac * Dot(evalFrame.wo, wm) * 4; 
+        if (Jac > 1e-6) {
+            Float J = Jac * wom * 4; 
+            brdf = value * J * GFactor;
+            pdf = mpdf * J * GFactor / vgroove.sumG;
+            return brdf;
+            /*
             if (bounce == 1) {
                 if (!rel_eq(J, 1, 1e-3)) {
-                    std::cout << "J is different from 1: "<< J << "\n";
-                    fflush(stdout);
+                    //std::cout << "J is different from 1: "<< J << "\n";
+                    //fflush(stdout);
                     //Float J = jacobian.computeJacobian(bounce, F) * Dot(evalFrame.wo, wm) * 4;
                 }
             }
-            brdf = value * J * GFactor;
-            if (NGFactor + 1e-4 < GFactor) {
-                std::cout << "NG: "<< NGFactor << " G:"<< GFactor<< "\n";
-                fflush(stdout);
-            }
-            //pdf = distribution->Pdf(evalFrame.owo, owm) * Jac * NGFactor;
-            pdf = mpdf * J * NGFactor;
-            weight = 1;
-            return brdf;
+            */
+        }
         }
     }
     return brdf;
@@ -371,30 +366,26 @@ VGrooveReflection::eval(const EvalFrame& evalFrame, const Vector3f &wo, const Ve
 
     //pdf = .5/Pi;
     //return MicrofacetReflection::f(wo, wi);
+
     Spectrum brdf(0);
     pdf = 0;
     if (!SameHemisphere(wo, wi)) return brdf;
-    if (evalFrame.theta_o < 1e-6) return brdf;
+    //if (evalFrame.theta_o < 1e-6) return brdf;
 
     VGroove vgroove(maxBounce, minBounce);
-
-    Float weightSum = 0; 
     
     for (int n = minBounce; n<=maxBounce; n++) {
-        Float tpdf = 0,  weight = 0; 
+        Float tpdf = 0; 
         Spectrum F;
-        Float tbrdf = computeBounceBrdf(evalFrame, vgroove, n, 'r', tpdf, F, weight);
-        brdf += tbrdf * F * weight;
+        Float tbrdf = computeBounceBrdf(evalFrame, vgroove, n, 'r', tpdf, F);
+        brdf += tbrdf * F;
         pdf += tpdf;
-        weightSum += weight;
         if (n == 1 && tbrdf > 0) continue;
-        tbrdf = computeBounceBrdf(evalFrame, vgroove, n, 'l', tpdf, F, weight);
-        brdf += tbrdf * F * weight;
+        tbrdf = computeBounceBrdf(evalFrame, vgroove, n, 'l', tpdf, F);
+        brdf += tbrdf * F;
         pdf += tpdf;
-        weightSum += weight;
     }
-    return Spectrum(brdf);
-    //return R*brdf;
+    return R*brdf;
 }
 
 int weightedRandomChoice(std::vector<Hit> hits, Float sumG, Float& prob)
@@ -437,8 +428,11 @@ VGrooveReflection::Sample_f(const Vector3f &owo, Vector3f *wi, const Point2f &u,
     } else { 
    
     Vector3f wh = distribution->Sample_wh(wo, u);
-    //*wi = Reflect(wo, wh);
-    //return eval(wo, *wi, *pdf);
+    Float owoh = Dot(wo, wh);
+    if (owoh < 1e-6) {
+        if (pdf) *pdf = 0;
+        return Spectrum(0);
+    }
     
     SampleFrame sampleFrame(wo, wh);
     if (sampleFrame.theta_o < 1e-6) {
@@ -448,6 +442,7 @@ VGrooveReflection::Sample_f(const Vector3f &owo, Vector3f *wi, const Point2f &u,
 
     Float grooveTheta = asin(wh.z);
     VGroove vgroove(maxBounce, minBounce);
+
     if (sampleFrame.wh.x * sampleFrame.wo.x >0) {
         vgroove.leftEvalOnly(grooveTheta, sampleFrame.theta_o);
     } else {
@@ -460,19 +455,33 @@ VGrooveReflection::Sample_f(const Vector3f &owo, Vector3f *wi, const Point2f &u,
             Hit hit = vgroove.theHits[choice];
             *wi = sampleFrame.constructWi(hit.thetaR);
             Float tmppdf = 0;
+            Spectrum F(1.f);
+
+#ifndef ISONLY
             Spectrum brdf = eval(sampleFrame, wo, *wi, tmppdf);
             if (pdf) *pdf = tmppdf;
             return brdf;
-            /*
-            Float brdf = microfacetReflectionWithoutG(wo, *wi, wh);
-            Float tpdf = microfacetPdf(wo, wh);
+#else
             Jacobian jacobian(sampleFrame.wo, sampleFrame.wi, sampleFrame.wh, fresnel);
-            Spectrum F(1.f);
-            Float J = jacobian.computeJacobian(hit.bounce, F) * Dot(sampleFrame.wo, sampleFrame.wh) * 4;
-            brdf *= hit.GFactor * J;
-            tpdf *= prob * J;
-
-            if (pdf) *pdf = tpdf;
+            Float woh = Dot(sampleFrame.wo, sampleFrame.wh);
+            if (!rel_eq(woh, owoh, 1e-3)) {
+                std::cout<<"woh: "<< woh << " owoh: "<<owoh<<"\n";
+                fflush(stdout);
+            }
+            Float J = jacobian.computeJacobian(hit.bounce, F);
+            if (J > 1e-6) {
+                Float brdf = microfacetReflectionWithoutG(wo, *wi, wh);
+                Float tpdf = microfacetPdf(wo, wh);
+                brdf *= hit.GFactor * J * woh;
+                tpdf *= prob * J * woh;
+                if (pdf) *pdf = tpdf;
+                return R*F*brdf;
+            }
+#endif
+            /*
+            Float brdf = computeBounceBrdf(sampleFrame, vgroove, hit.bounce, hit.side,
+                   tmppdf, F);
+            if (pdf) *pdf = tmppdf;
             return R*F*brdf;
             */
         }
@@ -493,6 +502,15 @@ VGrooveReflection::UniSample_f(const Vector3f &wo, Vector3f *wi, const Point2f &
     return eval(evalFrame, wo, *wi, pdfstub); 
 }
 
+
+Spectrum 
+VGrooveReflection:: f(const Vector3f &wo, const Vector3f &wi, Float& pdf) const {
+    Float tmppdf = 0;
+    EvalFrame evalFrame(wo, wi);
+    Spectrum brdf =  eval(evalFrame, wo, wi, tmppdf);
+    pdf = uniSample? 0.5/Pi : tmppdf;
+    return brdf;
+}
 
 Spectrum 
 VGrooveReflection:: f(const Vector3f &wo, const Vector3f &wi) const {

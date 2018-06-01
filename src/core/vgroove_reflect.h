@@ -112,7 +112,7 @@ VGroove::addHit(Float xi, int bcount, char side, Float GFactor) {
             GFactor = std::min((Float)1, GFactor);
             theHits.push_back( Hit(-xi, bcount, side, GFactor));
             sumG += GFactor;
-            if (sumG > 1) {
+            if (sumG > (1 + 1e-5)) {
                 std::cout<<"unexected sumG: "<< sumG <<"\n";
                 fflush(stdout);
             }
@@ -275,6 +275,7 @@ class VGrooveReflection : public MicrofacetReflection {
                       MicrofacetDistribution *distribution, Fresnel *fresnel, 
                       int maxBounce = 3, int minBounce = 1, bool uniSample = true);
     Spectrum f(const Vector3f &wo, const Vector3f &wi) const;
+    Spectrum f(const Vector3f &wo, const Vector3f &wi, Float& pdf) const;
     
     Spectrum Sample_f(const Vector3f &wo, Vector3f *wi, const Point2f &u,
                       Float *pdf, BxDFType *sampledType) const;
@@ -292,7 +293,7 @@ class VGrooveReflection : public MicrofacetReflection {
                    const Vector3f& wh) const;
     Float microfacetPdf(const Vector3f& wo, const Vector3f& wh) const;
     Float computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, char side,
-                    Float& pdf, Spectrum& F, Float& weight) const;
+                    Float& pdf, Spectrum& F) const;
     Spectrum eval(const EvalFrame& evalFrame, const Vector3f &wo, const Vector3f &wi, Float &pdf) const;
 
     Float computeGFactor(const EvalFrame& evalFrame, VGroove& vgroove, int bounce, 
