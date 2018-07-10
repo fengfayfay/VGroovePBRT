@@ -119,7 +119,8 @@ std::vector<std::shared_ptr<Shape>> CreateVGroove(
         dist = new TrowbridgeReitzDistribution(roughu, roughv, false, true); 
     }
 
-    srand(time(NULL)); 
+    //srand(time(NULL)); 
+    srand(17); 
 
     int ntris = 4 * (nx);
     int nverts = 6 * (nx);
