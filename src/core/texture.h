@@ -75,8 +75,8 @@ class SphericalMapping2D : public TextureMapping2D {
     Point2f Map(const SurfaceInteraction &si, Vector2f *dstdx,
                 Vector2f *dstdy) const;
 
-  private:
     Point2f sphere(const Point3f &P) const;
+  private:
     const Transform WorldToTexture;
 };
 

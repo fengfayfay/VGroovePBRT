@@ -40,6 +40,7 @@
 
 // shapes/triangle.h*
 #include "shape.h"
+#include "texture.h"
 #include "stats.h"
 #include <map>
 
@@ -73,8 +74,8 @@ class Triangle : public Shape {
     // Triangle Public Methods
     Triangle(const Transform *ObjectToWorld, const Transform *WorldToObject,
              bool reverseOrientation, const std::shared_ptr<TriangleMesh> &mesh,
-             int triNumber)
-        : Shape(ObjectToWorld, WorldToObject, reverseOrientation), mesh(mesh) {
+             int triNumber, const std::shared_ptr<SphericalMapping2D>& mapping)
+        : Shape(ObjectToWorld, WorldToObject, reverseOrientation), mesh(mesh), mapping(mapping) {
         v = &mesh->vertexIndices[3 * triNumber];
         triMeshBytes += sizeof(*this);
         faceIndex = mesh->faceIndices.size() ? mesh->faceIndices[triNumber] : 0;
@@ -96,6 +97,12 @@ class Triangle : public Shape {
   private:
     // Triangle Private Methods
     void GetUVs(Point2f uv[3]) const {
+        if (mapping) {
+            uv[0] = mapping->sphere(mesh->p[v[0]]);
+            uv[1] = mapping->sphere(mesh->p[v[1]]);
+            uv[2] = mapping->sphere(mesh->p[v[2]]);
+            return;
+        }
         if (mesh->uv) {
             uv[0] = mesh->uv[v[0]];
             uv[1] = mesh->uv[v[1]];
@@ -107,6 +114,7 @@ class Triangle : public Shape {
         }
     }
 
+    std::shared_ptr<SphericalMapping2D> mapping;
     // Triangle Private Data
     std::shared_ptr<TriangleMesh> mesh;
     const int *v;

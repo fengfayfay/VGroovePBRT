@@ -103,9 +103,10 @@ std::vector<std::shared_ptr<Shape>> CreateTriangleMesh(
         alphaMask, shadowAlphaMask, faceIndices);
     std::vector<std::shared_ptr<Shape>> tris;
     tris.reserve(nTriangles);
+    std::shared_ptr<SphericalMapping2D> smap = std::make_shared<SphericalMapping2D>(*ObjectToWorld);
     for (int i = 0; i < nTriangles; ++i)
         tris.push_back(std::make_shared<Triangle>(ObjectToWorld, WorldToObject,
-                                                  reverseOrientation, mesh, i));
+                                                  reverseOrientation, mesh, i, smap));
     return tris;
 }
 
