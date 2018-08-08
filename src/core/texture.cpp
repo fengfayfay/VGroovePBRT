@@ -121,7 +121,11 @@ Point2f SphericalMapping2D::Map(const SurfaceInteraction &si, Vector2f *dstdx,
 }
 
 Point2f SphericalMapping2D::sphere(const Point3f &p) const {
-    Vector3f vec = Normalize(WorldToTexture(p) - Point3f(0, 0, 0));
+    
+    Vector3f vec = WorldToTexture(p) - Point3f(0, 0, 0);
+    float len = vec.Length();
+    if (len < 1e-6) return Point2f(0, 0);
+    vec /= len;
     Float theta = SphericalTheta(vec), phi = SphericalPhi(vec);
     return Point2f(theta * InvPi, phi * Inv2Pi);
 }
