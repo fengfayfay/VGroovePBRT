@@ -50,7 +50,7 @@ MetalMaterial::MetalMaterial(const std::shared_ptr<Texture<Spectrum>> &eta,
                              const std::shared_ptr<Texture<Float>> &bumpMap,
                              bool remapRoughness,
                              bool isVCavity, int maxBounce, int minBounce, 
-                             bool uniSample, bool useBeckmann, bool noFresnel)
+                             bool uniSample, bool useBeckmann, bool noFresnel, bool useAnisotropy, float anisotropy)
     : eta(eta),
       k(k),
       roughness(roughness),
@@ -58,7 +58,7 @@ MetalMaterial::MetalMaterial(const std::shared_ptr<Texture<Spectrum>> &eta,
       vRoughness(vRoughness),
       bumpMap(bumpMap),
       remapRoughness(remapRoughness),
-      isVCavity(isVCavity), maxBounce(maxBounce), minBounce(minBounce), uniSample(uniSample), useBeckmann(useBeckmann), noFresnel(noFresnel) {}
+      isVCavity(isVCavity), maxBounce(maxBounce), minBounce(minBounce), uniSample(uniSample), useBeckmann(useBeckmann), noFresnel(noFresnel), useAnisotropy(useAnisotropy), anisotropy(anisotropy) {}
 
 void MetalMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
                                                MemoryArena &arena,
@@ -68,10 +68,33 @@ void MetalMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
     if (bumpMap) Bump(bumpMap, si);
     si->bsdf = ARENA_ALLOC(arena, BSDF)(*si);
 
-    Float uRough =
-        uRoughness ? uRoughness->Evaluate(*si) : roughness->Evaluate(*si);
-    Float vRough =
-        vRoughness ? vRoughness->Evaluate(*si) : roughness->Evaluate(*si);
+    Float uRough = 0;
+    Float vRough = 0; 
+
+    if(useAnisotropy){
+        
+
+        Float aniso = Clamp(anisotropy, -0.99, 0.99);
+        Float roughness_value = roughness->Evaluate(*si);
+    
+        if (aniso < 0.0) {
+
+            uRough = roughness_value / (1.0 + aniso);
+            vRough = roughness_value * (1.0 + aniso);
+        
+        } else {
+
+            uRough = roughness_value * (1.0 - aniso);
+            vRough = roughness_value / (1.0 - aniso);
+        }
+
+    } else {
+        uRough =
+            uRoughness ? uRoughness->Evaluate(*si) : roughness->Evaluate(*si);
+        vRough =
+            vRoughness ? vRoughness->Evaluate(*si) : roughness->Evaluate(*si);
+    }
+
     if (remapRoughness) {
         if (useBeckmann) {
             uRough = BeckmannDistribution::RoughnessToAlpha(uRough);
@@ -154,16 +177,18 @@ MetalMaterial *CreateMetalMaterial(const TextureParams &mp) {
     std::shared_ptr<Texture<Float>> bumpMap =
         mp.GetFloatTextureOrNull("bumpmap");
     bool remapRoughness = mp.FindBool("remaproughness", false);
+    bool useAnisotropy = mp.FindBool("useAnisotropy", false); 
 
     bool isVCavity = mp.FindBool("vcavity", false);
     bool uniSample = mp.FindBool("uniform", true);
     bool noFresnel = mp.FindBool("noFresnel", false);
     int maxBounce = mp.FindInt("maxBounce", 3);
     int minBounce = mp.FindInt("minBounce", 1);
+    float anisotropy = mp.FindFloat("anisotropy", 0.0); 
 
     bool useBeckmann = mp.FindBool("useBeckman", false);
     return new MetalMaterial(eta, k, roughness, uRoughness, vRoughness, bumpMap,
-                             remapRoughness, isVCavity, maxBounce, minBounce, uniSample, useBeckmann, noFresnel);
+                             remapRoughness, isVCavity, maxBounce, minBounce, uniSample, useBeckmann, noFresnel, useAnisotropy, anisotropy);
 }
 
 }  // namespace pbrt
