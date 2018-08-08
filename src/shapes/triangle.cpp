@@ -337,6 +337,14 @@ bool Triangle::Intersect(const Ray &ray, Float *tHit, SurfaceInteraction *isect,
                                       Normal3f(0, 0, 0), ray.time, this);
         if (mesh->alphaMask->Evaluate(isectLocal) == 0) return false;
     }
+    //temporary fix to support Blender's radial mapping for z axis
+    Vector3f normalIn = Normalize(Cross(dpdu, dpdv));
+    Point3f pc = pHit;
+    Vector3f T(-(pc.y), pc.x, 0);
+    Vector3f biT = Normalize(Cross(T, normalIn));
+    Vector3f tangent = Cross(normalIn,biT);
+    dpdu = tangent;
+    dpdv = biT; 
 
     // Fill in _SurfaceInteraction_ from triangle hit
     *isect = SurfaceInteraction(pHit, pError, uvHit, -ray.d, dpdu, dpdv,
@@ -344,7 +352,7 @@ bool Triangle::Intersect(const Ray &ray, Float *tHit, SurfaceInteraction *isect,
                                 this, faceIndex);
 
     // Override surface normal in _isect_ for triangle
-    isect->n = isect->shading.n = Normal3f(Normalize(Cross(dp02, dp12)));
+    //isect->n = isect->shading.n = Normal3f(Normalize(Cross(dp02, dp12)));
     if (mesh->n || mesh->s) {
         // Initialize _Triangle_ shading geometry
 

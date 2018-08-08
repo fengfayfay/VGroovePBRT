@@ -97,12 +97,14 @@ class Triangle : public Shape {
   private:
     // Triangle Private Methods
     void GetUVs(Point2f uv[3]) const {
+        /*
         if (mapping) {
             uv[0] = mapping->sphere(mesh->p[v[0]]);
             uv[1] = mapping->sphere(mesh->p[v[1]]);
             uv[2] = mapping->sphere(mesh->p[v[2]]);
             return;
         }
+        */
         if (mesh->uv) {
             uv[0] = mesh->uv[v[0]];
             uv[1] = mesh->uv[v[1]];
