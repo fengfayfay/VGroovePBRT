@@ -345,7 +345,6 @@ bool Triangle::Intersect(const Ray &ray, Float *tHit, SurfaceInteraction *isect,
     Vector3f tangent = Cross(normalIn,biT);
     dpdu = tangent;
     dpdv = biT; 
-
     // Fill in _SurfaceInteraction_ from triangle hit
     *isect = SurfaceInteraction(pHit, pError, uvHit, -ray.d, dpdu, dpdv,
                                 Normal3f(0, 0, 0), Normal3f(0, 0, 0), ray.time,

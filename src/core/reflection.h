@@ -159,6 +159,12 @@ class BSDF {
           ng(si.n),
           ss(Normalize(si.shading.dpdu)),
           ts(Cross(ns, ss)) {}
+    BSDF(const SurfaceInteraction &si, const Vector3f& ss, const Vector3f& ts, Float eta=1)
+        : eta(eta),
+          ns(Cross(ss, ts)),
+          ng(si.n),
+          ss(ss),
+          ts(ts) {}  
     void Add(BxDF *b) {
         CHECK_LT(nBxDFs, MaxBxDFs);
         bxdfs[nBxDFs++] = b;

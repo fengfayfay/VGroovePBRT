@@ -56,7 +56,9 @@ class MetalMaterial : public Material {
                   const std::shared_ptr<Texture<Float>> &vrough,
                   const std::shared_ptr<Texture<Float>> &bump,
                   bool remapRoughness, 
-                  bool isVCavity = false, int maxBounce = 3, int minBounce = 1, bool uniSample=true, bool useBeckmann = true, bool noFresnel = false, bool useAnisotropy = false, float anisotropy = 0.0);
+                  bool isVCavity = false, int maxBounce = 3, int minBounce = 1, 
+                  bool uniSample=true, bool useBeckmann = true, bool noFresnel = false, bool useAnisotropy = false, bool useSphericalMapping = false,
+                  float anisotropy = 0.0);
     void ComputeScatteringFunctions(SurfaceInteraction *si, MemoryArena &arena,
                                     TransportMode mode,
                                     bool allowMultipleLobes) const;
@@ -73,8 +75,8 @@ class MetalMaterial : public Material {
     bool useBeckmann;
     bool noFresnel;
     bool useAnisotropy; 
+    bool useSphericalMapping;
     float anisotropy; 
-
 };
 
 MetalMaterial *CreateMetalMaterial(const TextureParams &mp);

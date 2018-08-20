@@ -50,7 +50,8 @@ MetalMaterial::MetalMaterial(const std::shared_ptr<Texture<Spectrum>> &eta,
                              const std::shared_ptr<Texture<Float>> &bumpMap,
                              bool remapRoughness,
                              bool isVCavity, int maxBounce, int minBounce, 
-                             bool uniSample, bool useBeckmann, bool noFresnel, bool useAnisotropy, float anisotropy)
+                             bool uniSample, bool useBeckmann, bool noFresnel, bool useAnisotropy, 
+                             bool useSphericalMapping, float anisotropy)
     : eta(eta),
       k(k),
       roughness(roughness),
@@ -58,7 +59,8 @@ MetalMaterial::MetalMaterial(const std::shared_ptr<Texture<Spectrum>> &eta,
       vRoughness(vRoughness),
       bumpMap(bumpMap),
       remapRoughness(remapRoughness),
-      isVCavity(isVCavity), maxBounce(maxBounce), minBounce(minBounce), uniSample(uniSample), useBeckmann(useBeckmann), noFresnel(noFresnel), useAnisotropy(useAnisotropy), anisotropy(anisotropy) {}
+      isVCavity(isVCavity), maxBounce(maxBounce), minBounce(minBounce), uniSample(uniSample), useBeckmann(useBeckmann), noFresnel(noFresnel), useAnisotropy(useAnisotropy),
+      useSphericalMapping(useSphericalMapping), anisotropy(anisotropy) {}
 
 void MetalMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
                                                MemoryArena &arena,
@@ -66,7 +68,23 @@ void MetalMaterial::ComputeScatteringFunctions(SurfaceInteraction *si,
                                                bool allowMultipleLobes) const {
     // Perform bump mapping with _bumpMap_, if present
     if (bumpMap) Bump(bumpMap, si);
-    si->bsdf = ARENA_ALLOC(arena, BSDF)(*si);
+
+    Vector3f ss = Normalize(si->shading.dpdu);
+    Vector3f ns(si->shading.n);
+    Vector3f ts = Normalize(Cross(ns, ss));
+    if (useSphericalMapping) {
+        Vector3f normalIn(si->n);
+        Point3f pc = si->p;
+        Vector3f T(-(pc.y), pc.x, 0);
+        Vector3f biT = Normalize(Cross(T, normalIn));
+        Vector3f tangent = Cross(normalIn,biT);
+        ss = tangent;
+        ts = biT; 
+        si->bsdf = ARENA_ALLOC(arena, BSDF)(*si, ss, ts);
+    } else {
+        si->bsdf =  ARENA_ALLOC(arena, BSDF)(*si);
+    }
+
 
     Float uRough = 0;
     Float vRough = 0; 
@@ -178,6 +196,7 @@ MetalMaterial *CreateMetalMaterial(const TextureParams &mp) {
         mp.GetFloatTextureOrNull("bumpmap");
     bool remapRoughness = mp.FindBool("remaproughness", false);
     bool useAnisotropy = mp.FindBool("useAnisotropy", false); 
+    bool useSphericalMapping = mp.FindBool("useSphericalMapping", true); 
 
     bool isVCavity = mp.FindBool("vcavity", false);
     bool uniSample = mp.FindBool("uniform", true);
@@ -188,7 +207,7 @@ MetalMaterial *CreateMetalMaterial(const TextureParams &mp) {
 
     bool useBeckmann = mp.FindBool("useBeckman", false);
     return new MetalMaterial(eta, k, roughness, uRoughness, vRoughness, bumpMap,
-                             remapRoughness, isVCavity, maxBounce, minBounce, uniSample, useBeckmann, noFresnel, useAnisotropy, anisotropy);
+                             remapRoughness, isVCavity, maxBounce, minBounce, uniSample, useBeckmann, noFresnel, useAnisotropy, useSphericalMapping, anisotropy);
 }
 
 }  // namespace pbrt
