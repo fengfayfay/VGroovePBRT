@@ -1,4 +1,3 @@
-#include<stdio.h>
 #include <sampling.h>
 #include "vgroove_reflect.h"
 
@@ -344,7 +343,7 @@ VGrooveReflection::computeBounceBrdf(const EvalFrame& evalFrame, VGroove& vgroov
         if (Jac > 1e-6) {
             Float J = Jac * wom * 4; 
             brdf = value * J * GFactor;
-            pdf = mpdf * J * GFactor / vgroove.sumG;
+            pdf = mpdf * Jac * GFactor / vgroove.sumG;
             return brdf;
             /*
             if (bounce == 1) {
@@ -388,7 +387,7 @@ VGrooveReflection::eval(const EvalFrame& evalFrame, const Vector3f &wo, const Ve
     return R*brdf;
 }
 
-int weightedRandomChoice(std::vector<Hit> hits, Float sumG, Float& prob)
+int weightedRandomChoice(std::vector<Hit> hits, Float sumG, Float& prob, Float u1)
 {
     //Float u = .5;
     prob = 0;
@@ -401,7 +400,6 @@ int weightedRandomChoice(std::vector<Hit> hits, Float sumG, Float& prob)
 
     if (validHits == 2) { 
         Float weight = hits[0].GFactor/sumG;
-        Float u1 = (((Float) rand())/(RAND_MAX));
         if (u1 < weight) {
             prob = weight;
             return 0;
@@ -450,7 +448,7 @@ VGrooveReflection::Sample_f(const Vector3f &owo, Vector3f *wi, const Point2f &u,
     }
     if (vgroove.theHits.size() > 0) {
         Float prob = 0;
-        int choice = weightedRandomChoice(vgroove.theHits, vgroove.sumG, prob);
+        int choice = weightedRandomChoice(vgroove.theHits, vgroove.sumG, prob, u[1]);
         if (choice >= 0) {
             Hit hit = vgroove.theHits[choice];
             *wi = sampleFrame.constructWi(hit.thetaR);
@@ -472,8 +470,8 @@ VGrooveReflection::Sample_f(const Vector3f &owo, Vector3f *wi, const Point2f &u,
             if (J > 1e-6) {
                 Float brdf = microfacetReflectionWithoutG(wo, *wi, wh);
                 Float tpdf = microfacetPdf(wo, wh);
-                brdf *= hit.GFactor * J * woh;
-                tpdf *= prob * J * woh;
+                brdf *= hit.GFactor * J * 4 * woh;
+                tpdf *= prob * J;
                 if (pdf) *pdf = tpdf;
                 return R*F*brdf;
             }
@@ -550,7 +548,7 @@ VGrooveReflection::microfacetReflectionWithoutG(const Vector3f& wo, const Vector
 
 Float
 VGrooveReflection::microfacetPdf(const Vector3f& wo, const Vector3f& wh) const {
-    return distribution->Pdf(wo, wh) / (4 * Dot(wo, wh));        
+    return distribution->Pdf(wo, wh);        
 }
 
 Float

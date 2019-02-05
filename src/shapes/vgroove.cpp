@@ -132,12 +132,15 @@ std::vector<std::shared_ptr<Shape>> CreateVGroove(
     Vector3f wo(0, 0, 1);
     for (int x = 0; x < nx; ++x) {
         if (roughu > 0) {
-            float u1 = ((float) rand()/(RAND_MAX));
-            float u2 = ((float) rand()/(RAND_MAX));
-            Point2f u (u1, u2);
             Vector3f wh;
-            wh = dist->Sample_wh(wo, u);
-            float sampleAngle = 90.0 - Degrees(acos(wh.z));
+            float sampleAngle = 90;
+            while (sampleAngle >80) {
+                float u1 = ((float) rand()/(RAND_MAX));
+                float u2 = ((float) rand()/(RAND_MAX));
+                Point2f u (u1, u2);
+                wh = dist->Sample_wh(wo, u);
+                sampleAngle = 90.0 - Degrees(acos(wh.z));
+            }
             makeGroove(P, uvs, indices, x, sampleAngle, nx);
         } else {
             makeGroove(P, uvs, indices, x, grooveAngle, nx);
