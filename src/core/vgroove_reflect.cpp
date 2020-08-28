@@ -292,7 +292,8 @@ VGrooveReflection::VGrooveReflection(const Spectrum &R,
                       int maxBounce, int minBounce, bool uniSample)
         : MicrofacetReflection(R, distribution, fresnel), maxBounce(maxBounce),
           minBounce(minBounce), uniSample(uniSample) { 
-    srand(time(NULL)); 
+    //srand(time(NULL)); 
+    srand(7); 
 }
 
 

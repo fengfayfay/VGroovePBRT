@@ -352,7 +352,7 @@ bool Triangle::Intersect(const Ray &ray, Float *tHit, SurfaceInteraction *isect,
                                 this, faceIndex);
 
     // Override surface normal in _isect_ for triangle
-    //isect->n = isect->shading.n = Normal3f(Normalize(Cross(dp02, dp12)));
+    isect->n = isect->shading.n = Normal3f(Normalize(Cross(dp02, dp12)));
     if (mesh->n || mesh->s) {
         // Initialize _Triangle_ shading geometry
 
